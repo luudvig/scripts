@@ -1,0 +1,514 @@
+---
+
+# ansible-playbook -e email=<email> -e gitname=<gitname> -e hostname=<hostname> -K fedora.yml
+
+- hosts: 127.0.0.1
+  connection: local
+  tasks:
+
+  - name: assert additional variables
+    assert:
+      that:
+        - email is defined
+        - gitname is defined
+        - hostname is defined
+
+  - name: gsettings
+    command: gsettings get "{{ item.schema_path }}" "{{ item.key }}"
+    loop:
+      - { schema_path: "org.gnome.Terminal.ProfilesList", key: "default" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.media-keys", key: "custom-keybindings" }
+      - { schema_path: "org.gnome.shell", key: "enabled-extensions" }
+      - { schema_path: "org.gnome.shell", key: "favorite-apps" }
+    register: result_command
+    changed_when: no
+
+  - name: gsettings
+    set_fact:
+      profile_default: "{{ result_command.results[0].stdout | regex_replace(\"'\") }}"
+      custom_keybindings: "{{ result_command.results[1].stdout | regex_replace('^@as ') }}"
+      enabled_extensions: "{{ result_command.results[2].stdout | regex_replace('^@as ') }}"
+      favorite_apps: "{{ result_command.results[3].stdout | regex_replace('^@as ') }}"
+      custom_keybinding: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
+
+  - name: gsettings - append custom keybinding
+    set_fact:
+      custom_keybindings: "{{ custom_keybindings }} + ['{{ item }}']"
+    loop:
+      - "{{ custom_keybinding }}"
+    when: item not in custom_keybindings
+    changed_when: yes
+
+  - name: gsettings - remove enabled extension
+    set_fact:
+      enabled_extensions: "{{ enabled_extensions | difference([item]) }}"
+    loop:
+      - "background-logo@fedorahosted.org"
+    when: item in enabled_extensions
+    changed_when: yes
+
+  - name: gsettings - append favorite app
+    set_fact:
+      favorite_apps: "{{ favorite_apps }} + ['{{ item }}']"
+    loop:
+      - "org.gnome.Terminal.desktop"
+      - "com.spotify.Client.desktop"
+    when: item not in favorite_apps
+    changed_when: yes
+
+  - name: gsettings - remove favorite app
+    set_fact:
+      favorite_apps: "{{ favorite_apps | difference([item]) }}"
+    loop:
+      - "org.gnome.Calendar.desktop"
+      - "org.gnome.Photos.desktop"
+      - "rhythmbox.desktop"
+    when: item in favorite_apps
+    changed_when: yes
+
+  - name: gsettings
+    set_fact:
+      gsettings_fact: "{{ gsettings_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { schema_path: "org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:{{ profile_default }}/", key: "default-size-columns", value: "132" }
+      - { schema_path: "org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:{{ profile_default }}/", key: "default-size-rows", value: "43" }
+      - { schema_path: "org.gnome.desktop.calendar", key: "show-weekdate", value: "true" }
+      - { schema_path: "org.gnome.desktop.interface", key: "gtk-theme", value: "'Adwaita-dark'" }
+      - { schema_path: "org.gnome.desktop.media-handling", key: "autorun-never", value: "true" }
+      - { schema_path: "org.gnome.desktop.notifications", key: "show-in-lock-screen", value: "false" }
+      - { schema_path: "org.gnome.desktop.privacy", key: "remember-recent-files", value: "false" }
+      - { schema_path: "org.gnome.desktop.privacy", key: "remove-old-temp-files", value: "true" }
+      - { schema_path: "org.gnome.desktop.session", key: "idle-delay", value: "uint32 0" }
+      - { schema_path: "org.gnome.desktop.wm.preferences", key: "button-layout", value: "'appmenu:minimize,maximize,close'" }
+      - { schema_path: "org.gnome.nautilus.preferences", key: "default-folder-viewer", value: "'list-view'" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.color", key: "night-light-enabled", value: "true" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.media-keys", key: "control-center", value: "['Tools']" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.media-keys", key: "custom-keybindings", value: "{{ custom_keybindings | regex_replace('^\\[\\]$', '@as []') | string }}" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{{ custom_keybinding }}", key: "binding", value: "'<Primary><Alt>t'" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{{ custom_keybinding }}", key: "command", value: "'gnome-terminal'" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{{ custom_keybinding }}", key: "name", value: "'Terminal'" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.power", key: "idle-dim", value: "false" }
+      - { schema_path: "org.gnome.settings-daemon.plugins.power", key: "sleep-inactive-battery-type", value: "'nothing'" }
+      - { schema_path: "org.gnome.shell", key: "enabled-extensions", value: "{{ enabled_extensions | regex_replace('^\\[\\]$', '@as []') | string }}" }
+      - { schema_path: "org.gnome.shell", key: "favorite-apps", value: "{{ favorite_apps | regex_replace('^\\[\\]$', '@as []') | string }}" }
+
+  - name: gsettings
+    command: gsettings get "{{ item.schema_path }}" "{{ item.key }}"
+    loop: "{{ gsettings_fact }}"
+    register: result_command
+    changed_when: no
+
+  - name: gsettings - set gsetting
+    command: gsettings set "{{ item.schema_path }}" "{{ item.key }}" "{{ item.value }}"
+    loop: "{{ gsettings_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_command.results[idx].stdout != item.value
+
+  - name: firefox
+    find:
+      paths: "{{ ansible_env.HOME }}/.mozilla/firefox"
+      patterns: "*default-release*"
+      file_type: directory
+    register: result_find
+
+  - name: firefox
+    set_fact:
+      firefox_handlers: "{{ result_find.files[0].path }}/handlers.json"
+      firefox_xulstore: "{{ result_find.files[0].path }}/xulstore.json"
+      firefox_prefs: "{{ result_find.files[0].path }}/prefs.js"
+      firefox_user: "{{ result_find.files[0].path }}/user.js"
+
+  - name: firefox
+    slurp:
+      src: "{{ item }}"
+    loop:
+      - "{{ firefox_handlers }}"
+      - "{{ firefox_xulstore }}"
+    register: result_slurp
+
+  - name: firefox
+    set_fact:
+      handlers_old: "{{ result_slurp.results[0].content | b64decode }}"
+      handlers_new: "{{ result_slurp.results[0].content | b64decode }}"
+      xulstore_old: "{{ result_slurp.results[1].content | b64decode }}"
+      xulstore_new: "{{ result_slurp.results[1].content | b64decode }}"
+
+  - name: firefox - append handlers
+    set_fact:
+      handlers_new: "{{ handlers_new | combine(item, recursive=True) }}"
+    loop:
+      - {"schemes": {"magnet": {"action": 4}}}
+    when: handlers_new.schemes.magnet.action is not defined
+    changed_when: yes
+
+  - name: firefox - append xulstore
+    set_fact:
+      xulstore_new: "{{ xulstore_new | combine(item, recursive=True) }}"
+    loop:
+      - {"chrome://browser/content/browser.xhtml": {"PersonalToolbar": {"collapsed": "true"}}}
+      - {"chrome://browser/content/places/historySidebar.xhtml": {"viewButton": {"selectedsort": "lastvisited"}}}
+    loop_control:
+      index_var: idx
+    when: (idx == 0 and xulstore_new["chrome://browser/content/browser.xhtml"].PersonalToolbar.collapsed == "false") or
+          (idx == 1 and xulstore_new["chrome://browser/content/places/historySidebar.xhtml"].viewButton.selectedsort is not defined)
+    changed_when: yes
+
+  - name: firefox - set handlers
+    copy:
+      content: "{{ item }}"
+      dest: "{{ firefox_handlers }}"
+    loop:
+      - "{{ handlers_new }}"
+    when: handlers_old != item
+
+  - name: firefox - set xulstore
+    copy:
+      content: "{{ item }}"
+      dest: "{{ firefox_xulstore }}"
+    loop:
+      - "{{ xulstore_new }}"
+    when: xulstore_old != item
+
+  - name: firefox
+    command: grep -x "user_pref(\"{{ item }}\", .*);" "{{ firefox_prefs }}"
+    loop:
+      - "browser.uiCustomization.state"
+      - "browser.pageActions.persistedActions"
+    register: result_command
+    changed_when: no
+
+  - name: firefox
+    set_fact:
+      ui_customization_state: "{{ result_command.results[0].stdout | regex_search('(?<=user_pref\\(\"browser\\.uiCustomization\\.state\", ).*(?=\\);)') }}"
+      persisted_actions: "{{ result_command.results[1].stdout | regex_search('(?<=user_pref\\(\"browser\\.pageActions\\.persistedActions\", ).*(?=\\);)') }}"
+
+  - name: firefox - remove ui customization state
+    set_fact:
+      ui_customization_state: "{{ ui_customization_state | regex_replace(item) }}"
+    loop:
+      - ",\\\\\"customizableui-special-spring1\\\\\""
+      - ",\\\\\"customizableui-special-spring2\\\\\""
+      - ",\\\\\"fxa-toolbar-menu-button\\\\\""
+      - ",\\\\\"home-button\\\\\""
+      - ",\\\\\"library-button\\\\\""
+      - ",\\\\\"sidebar-button\\\\\""
+    when: ui_customization_state | regex_search(item)
+    changed_when: yes
+
+  - name: firefox - remove persisted action
+    set_fact:
+      persisted_actions: "{{ persisted_actions | regex_replace(item) }}"
+    loop:
+      - "(?<=\\\\\"idsInUrlbar\\\\\":\\[)\\\\\"pocket\\\\\","
+    when: persisted_actions | regex_search(item)
+    changed_when: yes
+
+  - name: firefox
+    set_fact:
+      prefs_fact: "{{ prefs_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { key: "app.shield.optoutstudies.enabled", value: "false" }
+      - { key: "browser.ctrlTab.recentlyUsedOrder", value: "false" }
+      - { key: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", value: "false" }
+      - { key: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", value: "false" }
+      - { key: "browser.newtabpage.activity-stream.feeds.section.highlights", value: "false" }
+      - { key: "browser.newtabpage.activity-stream.feeds.snippets", value: "false" }
+      - { key: "browser.newtabpage.activity-stream.feeds.topsites", value: "false" }
+      - { key: "browser.newtabpage.activity-stream.showSearch", value: "false" }
+      - { key: "browser.newtabpage.enabled", value: "false" }
+      - { key: "browser.pageActions.persistedActions", value: "{{ persisted_actions }}" }
+      - { key: "browser.startup.homepage", value: "\"about:blank\"" }
+      - { key: "browser.uiCustomization.state", value: "{{ ui_customization_state }}" }
+      - { key: "browser.urlbar.suggest.bookmark", value: "false" }
+      - { key: "browser.urlbar.suggest.openpage", value: "false" }
+      - { key: "browser.urlbar.suggest.topsites", value: "false" }
+      - { key: "datareporting.healthreport.uploadEnabled", value: "false" }
+      - { key: "intl.regional_prefs.use_os_locales", value: "true" }
+      - { key: "layout.spellcheckDefault", value: "0" }
+      - { key: "media.eme.enabled", value: "true" }
+      - { key: "permissions.default.desktop-notification", value: "2" }
+      - { key: "permissions.default.geo", value: "2" }
+      - { key: "signon.management.page.breach-alerts.enabled", value: "false" }
+      - { key: "signon.rememberSignons", value: "false" }
+
+  - name: firefox
+    lineinfile:
+      path: "{{ firefox_prefs }}"
+      line: "user_pref(\"{{ item.key }}\", {{ item.value }});"
+    loop: "{{ prefs_fact }}"
+    register: result_lineinfile
+    check_mode: yes
+    changed_when: no
+
+  - name: firefox - set user pref
+    lineinfile:
+      path: "{{ firefox_user }}"
+      line: "user_pref(\"{{ item.key }}\", {{ item.value }});"
+      create: yes
+      mode: "600"
+    loop: "{{ prefs_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_lineinfile.results[idx].msg == "line added"
+
+  - name: software
+    package_facts:
+      manager: rpm
+    register: result_package_facts
+
+  - name: software - set dnf repository
+    become: yes
+    dnf:
+      name: "{{ item.url }}"
+      disable_gpg_check: yes
+    loop:
+      - { name: "rpmfusion-free-release", url: "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_distribution_major_version }}.noarch.rpm" }
+      - { name: "rpmfusion-nonfree-release", url: "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_distribution_major_version }}.noarch.rpm" }
+    when: result_package_facts.ansible_facts.packages[item.name] is not defined
+
+  - name: software - set dnf package
+    become: yes
+    dnf:
+      name: "{{ item }}"
+    loop:
+      - "ffmpeg"
+      - "gnome-subtitles"
+      - "gnome-tweaks"
+      - "keepassxc"
+      - "newsboat"
+      - "rclone"
+      - "tlp"
+      - "tlp-rdw"
+      - "transmission-gtk"
+      - "vim-enhanced"
+      - "vlc"
+      - "youtube-dl"
+    when: result_package_facts.ansible_facts.packages[item] is not defined
+
+  - name: software
+    command: "{{ item }}"
+    loop:
+      - "flatpak remotes --columns=title"
+      - "flatpak list --columns=application"
+    register: result_command
+    changed_when: no
+
+  - name: software - set flatpak remote
+    become: yes
+    command: flatpak remote-add flathub "{{ item.location }}"
+    loop:
+      - { name: "flathub", location: "https://flathub.org/repo/flathub.flatpakrepo" }
+    when: item.name not in result_command.results[0].stdout_lines | lower
+
+  - name: software - set flatpak application
+    command: flatpak install -y "{{ item.remote }}" "{{ item.ref }}"
+    loop:
+      - { remote: "fedora", ref: "org.gimp.GIMP" }
+      - { remote: "flathub", ref: "com.spotify.Client" }
+    when: item.ref not in result_command.results[1].stdout_lines
+
+  - name: system miscellaneous
+    command: hostnamectl status --static
+    register: result_command
+    changed_when: no
+
+  - name: system miscellaneous - set hostname
+    command: hostnamectl set-hostname "{{ item }}"
+    loop:
+      - "{{ hostname }}"
+    when: result_command.stdout != hostname
+
+  - name: system miscellaneous
+    set_fact:
+      sysctl_fact: "{{ sysctl_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { variable: "vm.swappiness", value: "10", dest: "/etc/sysctl.d/99-swappiness.conf" }
+
+  - name: system miscellaneous
+    command: sysctl -n "{{ item.variable }}"
+    loop: "{{ sysctl_fact }}"
+    register: result_command
+    changed_when: no
+
+  - name: system miscellaneous - set kernel parameter
+    become: yes
+    copy:
+      content: "{{ item.variable }}={{ item.value }}"
+      dest: "{{ item.dest }}"
+    loop: "{{ sysctl_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_command.results[idx].stdout != item.value
+
+  - name: system miscellaneous
+    set_fact:
+      systemctl_fact: "{{ systemctl_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { unit: "systemd-rfkill.socket", status: "masked" }
+
+  - name: system miscellaneous
+    command: systemctl is-enabled "{{ item.unit }}"
+    loop: "{{ systemctl_fact }}"
+    register: result_command
+    changed_when: no
+    failed_when:
+      - result_command.rc != 0
+      - result_command.rc != 1
+
+  - name: system miscellaneous - set systemd masked
+    become: yes
+    systemd:
+      name: "{{ item.unit }}"
+      masked: yes
+    loop: "{{ systemctl_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_command.results[idx].stdout != item.status
+
+  - name: user miscellaneous
+    set_fact:
+      autostart_fact: "{{ autostart_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { path: "{{ ansible_env.HOME }}/.config/autostart", state: "directory" }
+      - { path: "{{ ansible_env.HOME }}/.config/autostart/org.keepassxc.KeePassXC.desktop", state: "link", src: "/usr/share/applications/org.keepassxc.KeePassXC.desktop" }
+
+  - name: user miscellaneous
+    stat:
+      path: "{{ item.path }}"
+    loop: "{{ autostart_fact }}"
+    register: result_stat
+
+  - name: user miscellaneous - set autostart
+    file:
+      path: "{{ item.path }}"
+      state: "{{ item.state }}"
+      src: "{{ item.src | default() }}"
+    loop: "{{ autostart_fact }}"
+    loop_control:
+      index_var: idx
+    when: not result_stat.results[idx].stat.exists
+
+  - name: user miscellaneous
+    set_fact:
+      ssh_keygen_fact: "{{ ssh_keygen_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { filename: "{{ ansible_env.HOME }}/.ssh/id_rsa", comment: "{{ email }}" }
+
+  - name: user miscellaneous
+    stat:
+      path: "{{ item.filename }}"
+    loop: "{{ ssh_keygen_fact }}"
+    register: result_stat
+
+  - name: user miscellaneous - set ssh key
+    command: ssh-keygen -b 4096 -C "{{ item.comment }}" -f "{{ item.filename }}" -N "" -t rsa
+    loop: "{{ ssh_keygen_fact }}"
+    loop_control:
+      index_var: idx
+    when: not result_stat.results[idx].stat.exists
+
+  - name: user miscellaneous
+    set_fact:
+      git_config_fact: "{{ git_config_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { name: "pull.rebase", value: "false" }
+      - { name: "user.email", value: "{{ email }}" }
+      - { name: "user.name", value: "{{ gitname }}" }
+
+  - name: user miscellaneous
+    command: git config --global "{{ item.name }}"
+    loop: "{{ git_config_fact }}"
+    register: result_command
+    changed_when: no
+    failed_when:
+      - result_command.rc != 0
+      - result_command.rc != 1
+
+  - name: user miscellaneous - set git config
+    command: git config --global "{{ item.name }}" "{{ item.value }}"
+    loop: "{{ git_config_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_command.results[idx].rc != 0 or
+          result_command.results[idx].stdout != item.value
+
+  - name: user miscellaneous
+    set_fact:
+      bash_alias_fact: "{{ bash_alias_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { name: "bc", value: "bc -l" }
+      - { name: "cp", value: "cp -i" }
+      - { name: "docker", value: "podman" }
+      - { name: "mv", value: "mv -i" }
+
+  - name: user miscellaneous
+    shell: source "{{ ansible_env.HOME }}/.bashrc" && alias "{{ item.name }}"
+    loop: "{{ bash_alias_fact }}"
+    register: result_shell
+    changed_when: no
+    failed_when:
+      - result_shell.rc != 0
+      - result_shell.rc != 1
+
+  - name: user miscellaneous - set bash alias
+    lineinfile:
+      path: "{{ ansible_env.HOME }}/.bashrc"
+      line: "alias {{ item.name }}='{{ item.value }}'"
+    loop: "{{ bash_alias_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_shell.results[idx].rc != 0 or
+          not result_shell.results[idx].stdout | regex_search("^" + item.name + "='" + item.value + "'$")
+
+  - name: user miscellaneous
+    set_fact:
+      bash_env_fact: "{{ bash_env_fact | default([]) }} + [{{ item }}]"
+    loop:
+      - { name: "EDITOR", word: "vim" }
+      - { name: "HISTCONTROL", word: "ignoreboth" }
+
+  - name: user miscellaneous
+    shell: source "{{ ansible_env.HOME }}/.bashrc" && printenv "{{ item.name }}"
+    loop: "{{ bash_env_fact }}"
+    register: result_shell
+    changed_when: no
+    failed_when:
+      - result_shell.rc != 0
+      - result_shell.rc != 1
+
+  - name: user miscellaneous - set bash environment
+    lineinfile:
+      path: "{{ ansible_env.HOME }}/.bashrc"
+      line: "export {{ item.name }}='{{ item.word }}'"
+      insertafter: "^(# )?export"
+    loop: "{{ bash_env_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_shell.results[idx].stdout != item.word
+
+  - name: user miscellaneous
+    set_fact:
+      vim_config_fact: "{{ vim_config_fact | default([]) }} + ['{{ item }}']"
+    loop:
+      - "set indentexpr&"
+
+  - name: user miscellaneous
+    lineinfile:
+      path: "{{ ansible_env.HOME }}/.vimrc"
+      line: "{{ item }}"
+      create: yes
+    loop: "{{ vim_config_fact }}"
+    register: result_lineinfile
+    check_mode: yes
+    changed_when: no
+
+  - name: user miscellaneous - set vim config
+    lineinfile:
+      path: "{{ ansible_env.HOME }}/.vimrc"
+      line: "{{ item }}"
+      create: yes
+    loop: "{{ vim_config_fact }}"
+    loop_control:
+      index_var: idx
+    when: result_lineinfile.results[idx].msg == "line added"
