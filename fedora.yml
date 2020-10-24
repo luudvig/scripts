@@ -441,6 +441,7 @@
       - { name: "cp", value: "cp -i" }
       - { name: "docker", value: "podman" }
       - { name: "mv", value: "mv -i" }
+      - { name: "svtplay-dl", value: "docker run -it --rm --security-opt label=disable -v .:/data spaam/svtplay-dl" }
 
   - name: user miscellaneous
     shell: source "{{ ansible_env.HOME }}/.bashrc" && alias "{{ item.name }}"
