@@ -1,16 +1,12 @@
 ---
 
-# ansible-playbook -e email=<email> -e gitname=<gitname> -e hostname=<hostname> -K fedora.yml
+# ansible-playbook -e hostname=<hostname> -K fedora.yml
 
 - hosts: 127.0.0.1
   connection: local
   tasks:
 
-  - assert:
-      that:
-        - email is defined
-        - gitname is defined
-        - hostname is defined
+  - assert: { that: hostname is defined }
 
   - shell: gsettings get org.gnome.Terminal.ProfilesList default | tr -d \'
     register: gsettings_terminal_profile
@@ -48,8 +44,7 @@
 
   - command: gsettings set "{{ item.schema }}{{ item.path | default() }}" "{{ item.key }}" "{{ item.value }}"
     loop: "{{ gsettings }}"
-    loop_control:
-      index_var: idx
+    loop_control: { index_var: idx }
     when: item.value != gsettings_previous.results[idx].stdout
 
   - command: find "{{ ansible_env.HOME }}/.mozilla/firefox" -maxdepth 1 -type d -name "*.default-release" -print -quit
@@ -107,11 +102,11 @@
   - lineinfile:
       path: "{{ firefox_profile.stdout }}/user.js"
       line: "user_pref(\"{{ item.key }}\", {{ item.value }});"
+      regexp: "^user_pref\\(\"{{ item.key }}\","
       create: yes
       mode: "600"
     loop: "{{ firefox_prefs }}"
-    loop_control:
-      index_var: idx
+    loop_control: { index_var: idx }
     when: firefox_prefs_previous.results[idx].msg == "line added"
 
   - slurp:
@@ -142,8 +137,7 @@
     loop:
       - { content: "{{ firefox_handlers_new }}", dest: "{{ firefox_profile.stdout }}/handlers.json" }
       - { content: "{{ firefox_xulstore_new }}", dest: "{{ firefox_profile.stdout }}/xulstore.json" }
-    loop_control:
-      index_var: idx
+    loop_control: { index_var: idx }
     when: (idx == 0 and firefox_handlers_old != firefox_handlers_new) or
           (idx == 1 and firefox_xulstore_old != firefox_xulstore_new)
 
@@ -207,51 +201,6 @@
     loop:
       - "systemd-rfkill.socket"
 
-  - command: ssh-keygen -b 4096 -C "{{ item.comment }}" -f "{{ item.filename }}" -N "" -t rsa
-    args:
-      creates: "{{ item.filename }}"
-    loop:
-      - { comment: "{{ email }}", filename: "{{ ansible_env.HOME }}/.ssh/id_rsa" }
-
-  - set_fact:
-      git_config: "{{ git_config | default([]) }} + [{{ item }}]"
-    loop:
-      - { name: "pull.rebase", value: "false" }
-      - { name: "user.email", value: "{{ email }}" }
-      - { name: "user.name", value: "{{ gitname }}" }
-
-  - command: git config --global "{{ item.name }}"
-    loop: "{{ git_config }}"
-    register: git_config_previous
-    changed_when: no
-    failed_when:
-      - git_config_previous.rc != 0
-      - git_config_previous.rc != 1
-
-  - command: git config --global "{{ item.name }}" "{{ item.value }}"
-    loop: "{{ git_config }}"
-    loop_control:
-      index_var: idx
-    when: git_config_previous.results[idx].rc != 0 or item.value != git_config_previous.results[idx].stdout
-
-  - lineinfile:
-      path: "{{ ansible_env.HOME }}/.bashrc"
-      line: "export {{ item.name }}='{{ item.word }}'"
-      insertafter: "^(# )?export"
-    loop:
-      - { name: "EDITOR", word: "vim" }
-      - { name: "HISTCONTROL", word: "ignoreboth" }
-
-  - lineinfile:
-      path: "{{ ansible_env.HOME }}/.bashrc"
-      line: "alias {{ item.name }}='{{ item.value }}'"
-    loop:
-      - { name: "bc", value: "bc -l" }
-      - { name: "cp", value: "cp -i" }
-      - { name: "docker", value: "podman" }
-      - { name: "mv", value: "mv -i" }
-      - { name: "svtplay-dl", value: "docker run -it --rm --security-opt label=disable -v .:/data spaam/svtplay-dl" }
-
   - file:
       path: "{{ item.path }}"
       state: "{{ item.state }}"
@@ -263,14 +212,29 @@
   - lineinfile:
       path: "{{ item.path }}"
       line: "{{ item.line }}"
+      regexp: "{{ item.regexp }}"
+      insertafter: "{{ item.insertafter | default('(?!)') }}"
       create: yes
     loop:
-      - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro c set browser \"printf %u | xclip -selection clipboard\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3" }
-      - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias bc='bc -l'", regexp: "^alias bc=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias bt-connect='while : ; do bluetoothctl connect  && break; done'", regexp: "^#?alias bt-connect=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias bt-disconnect='while : ; do bluetoothctl disconnect  && break; done'", regexp: "^#?alias bt-disconnect=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias bt-reconnect='bt-disconnect && bt-connect'", regexp: "^#?alias bt-reconnect=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias cp='cp -i'", regexp: "^alias cp=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias docker='podman'", regexp: "^alias docker=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias mv='mv -i'", regexp: "^alias mv=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'", regexp: "^#?alias rclone-copy=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'", regexp: "^#?alias rclone-sync=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v .:/data spaam/svtplay-dl'", regexp: "^alias svtplay-dl=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/vim'", regexp: "^export EDITOR=", insertafter: "^(# )?export" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTCONTROL='ignoreboth'", regexp: "^export HISTCONTROL=", insertafter: "^(# )?export" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }", regexp: "^rclone-deletefile\\(\\)" }
+      - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']", regexp: "^unqualified-search-registries =" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"", regexp: "^browser " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro c set browser \"printf %u | xclip -selection clipboard\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"", regexp: "^macro c " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes", regexp: "^refresh-on-startup " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3", regexp: "^reload-threads " }
+      - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&", regexp: "^set indentexpr" }
 
   - copy:
       content: "{{ item.content }}"
