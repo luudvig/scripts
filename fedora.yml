@@ -159,7 +159,6 @@
       - { name: "transmission-gtk" }
       - { name: "vim-enhanced" }
       - { name: "vlc" }
-      - { name: "xclip" }
 
   - command: "{{ item }}"
     loop:
@@ -201,14 +200,6 @@
     loop:
       - "systemd-rfkill.socket"
 
-  - file:
-      path: "{{ item.path }}"
-      state: "{{ item.state }}"
-      src: "{{ item.src | default() }}"
-    loop:
-      - { path: "{{ ansible_env.HOME }}/.config/autostart", state: "directory" }
-      - { path: "{{ ansible_env.HOME }}/.config/autostart/org.keepassxc.KeePassXC.desktop", state: "link", src: "/usr/share/applications/org.keepassxc.KeePassXC.desktop" }
-
   - lineinfile:
       path: "{{ item.path }}"
       line: "{{ item.line }}"
@@ -231,7 +222,6 @@
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }", regexp: "^rclone-deletefile\\(\\)" }
       - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']", regexp: "^unqualified-search-registries =" }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"", regexp: "^browser " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro c set browser \"printf %u | xclip -selection clipboard\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"", regexp: "^macro c " }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes", regexp: "^refresh-on-startup " }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3", regexp: "^reload-threads " }
       - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&", regexp: "^set indentexpr" }
