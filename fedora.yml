@@ -179,6 +179,14 @@
       - { remote: "flathub", ref: "com.spotify.Client" }
     when: item.ref not in flatpak_installed.results[1].stdout_lines
 
+  - get_url:
+      url: "{{ item.url }}"
+      dest: "{{ item.dest }}"
+      mode: "755"
+    become: yes
+    loop:
+      - { url: "https://yt-dl.org/downloads/latest/youtube-dl", dest: "/usr/local/bin/youtube-dl" }
+
   - hostname:
       name: "{{ item }}"
       use: systemd
@@ -200,6 +208,12 @@
     loop:
       - "systemd-rfkill.socket"
 
+  - git:
+      repo: "{{ item.repo }}"
+      dest: "{{ item.dest }}"
+    loop:
+      - { repo: "https://github.com/luudvig/scripts.git", dest: "{{ ansible_env.HOME }}/Scripts" }
+
   - lineinfile:
       path: "{{ item.path }}"
       line: "{{ item.line }}"
@@ -216,12 +230,14 @@
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias mv='mv -i'", regexp: "^alias mv=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'", regexp: "^#?alias rclone-copy=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'", regexp: "^#?alias rclone-sync=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v .:/data spaam/svtplay-dl'", regexp: "^alias svtplay-dl=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'", regexp: "^alias svtplay-dl=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias ytsearch='$HOME/Scripts/ytsearch.py'", regexp: "^alias ytsearch=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/vim'", regexp: "^export EDITOR=", insertafter: "^(# )?export" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTCONTROL='ignoreboth'", regexp: "^export HISTCONTROL=", insertafter: "^(# )?export" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }", regexp: "^rclone-deletefile\\(\\)" }
       - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']", regexp: "^unqualified-search-registries =" }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"", regexp: "^browser " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro v set browser \"$HOME/Scripts/ytsearch.py\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"", regexp: "^macro v " }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes", regexp: "^refresh-on-startup " }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3", regexp: "^reload-threads " }
       - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&", regexp: "^set indentexpr" }
