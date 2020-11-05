@@ -159,6 +159,7 @@
       - { name: "transmission-gtk" }
       - { name: "vim-enhanced" }
       - { name: "vlc" }
+      - { name: "xclip" }
 
   - command: "{{ item }}"
     loop:
@@ -231,13 +232,16 @@
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'", regexp: "^#?alias rclone-copy=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'", regexp: "^#?alias rclone-sync=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'", regexp: "^alias svtplay-dl=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias ytsearch='$HOME/Scripts/ytsearch.py'", regexp: "^alias ytsearch=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '", regexp: "^#?alias ytsearch=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/vim'", regexp: "^export EDITOR=", insertafter: "^(# )?export" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTCONTROL='ignoreboth'", regexp: "^export HISTCONTROL=", insertafter: "^(# )?export" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }", regexp: "^rclone-deletefile\\(\\)" }
       - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']", regexp: "^unqualified-search-registries =" }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"", regexp: "^browser " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro v set browser \"$HOME/Scripts/ytsearch.py\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"", regexp: "^macro v " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color info white blue bold", regexp: "^color info " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus white blue bold", regexp: "^color listfocus " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus_unread white blue bold", regexp: "^color listfocus_unread " }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro c set browser \"printf %u | xclip -selection clipboard\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"", regexp: "^macro c " }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes", regexp: "^refresh-on-startup " }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3", regexp: "^reload-threads " }
       - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&", regexp: "^set indentexpr" }
