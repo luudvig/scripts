@@ -83,11 +83,14 @@
       - { key: "browser.urlbar.suggest.openpage", value: "false" }
       - { key: "browser.urlbar.suggest.topsites", value: "false" }
       - { key: "datareporting.healthreport.uploadEnabled", value: "false" }
+      - { key: "dom.security.https_only_mode", value: "true" }
+      - { key: "dom.security.https_only_mode_ever_enabled", value: "true" }
       - { key: "intl.regional_prefs.use_os_locales", value: "true" }
       - { key: "layout.spellcheckDefault", value: "0" }
       - { key: "media.eme.enabled", value: "true" }
       - { key: "permissions.default.desktop-notification", value: "2" }
       - { key: "permissions.default.geo", value: "2" }
+      - { key: "privacy.donottrackheader.enabled", value: "true" }
       - { key: "signon.management.page.breach-alerts.enabled", value: "false" }
       - { key: "signon.rememberSignons", value: "false" }
 

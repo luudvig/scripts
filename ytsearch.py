@@ -10,11 +10,12 @@ from sys import exit
 
 parser = ArgumentParser()
 parser.add_argument('-d', '--download', action='store_true', help='download all selected videos')
-parser.add_argument('-n', '--number', type=int, default=5, help='number of search results (default: 5)')
-parser.add_argument('-r', '--resolution', type=int, default=720, help='maximum resolution (height) to download (default: 720)')
-parser.add_argument('search', nargs='+', help='string to search for')
+parser.add_argument('-n', '--number', default=5, type=int, help='max results when searching (default: 5)')
+parser.add_argument('-r', '--resolution', default=720, type=int, help='max resolution height when downloading (default: 720)')
+parser.add_argument('-s', '--sort', action='store_const', const='date', default='relevance', help='sort by date when searching')
 required_arguments = parser.add_argument_group('required arguments')
-required_arguments.add_argument('-k', '--api-key', required=True, help='key to use in api requests')
+required_arguments.add_argument('-k', '--api-key', required=True, help='api key to use when searching')
+required_arguments.add_argument('query', nargs='+', help='query to use when searching or url to stream/download')
 arguments = parser.parse_args()
 
 bin_ytdl = run(['which', 'youtube-dl'], stdout=PIPE, check=True, text=True).stdout.rstrip()
@@ -29,13 +30,13 @@ def run_success(args, stdout=None, text=None):
         else:
             return process
 
-if len(arguments.search) == 1 and match('https:\/\/(www\.)?youtu\.?be(\.com)?\/(watch\?v=)?[a-zA-Z0-9-_]{11}', arguments.search[0]):
-    webpage_urls = [arguments.search[0]]
+if len(arguments.query) == 1 and match('https:\/\/(www\.)?youtu\.?be(\.com)?\/(watch\?v=)?[a-zA-Z0-9-_]{11}', arguments.query[0]):
+    webpage_urls = [arguments.query[0]]
 else:
     locator = 'https://youtube.googleapis.com/youtube/v3'
     headers = dict(accept='application/json')
 
-    search_payload = dict(part='id', maxResults=arguments.number, q=' '.join(arguments.search), type='video', key=arguments.api_key)
+    search_payload = dict(part='id', maxResults=arguments.number, order=arguments.sort, q=' '.join(arguments.query), type='video', key=arguments.api_key)
     search_response = get('{0}/search'.format(locator), headers=headers, params=search_payload)
 
     videos_payload = dict(part=['contentDetails', 'snippet'], id=[i['id']['videoId'] for i in search_response.json()['items']], key=arguments.api_key)
