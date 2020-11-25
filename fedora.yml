@@ -15,6 +15,7 @@
   - set_fact:
       gsettings: "{{ gsettings | default([]) }} + [{{ item }}]"
     loop:
+      - { schema: "org.gnome.Maps", key: "night-mode", value: "true" }
       - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_terminal_profile.stdout }}/", key: "default-size-columns", value: "132" }
       - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_terminal_profile.stdout }}/", key: "default-size-rows", value: "43" }
       - { schema: "org.gnome.desktop.calendar", key: "show-weekdate", value: "true" }
