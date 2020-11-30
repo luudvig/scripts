@@ -10,10 +10,12 @@ from subprocess import CalledProcessError, PIPE, Popen, run
 from sys import exit
 from tempfile import NamedTemporaryFile
 
+quality_choices = [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144]
+
 parser = ArgumentParser()
 parser.add_argument('-d', '--download', action='store_true', help='download all selected videos')
-parser.add_argument('-n', '--number', default=5, type=int, help='max results when searching (default: 5)')
-parser.add_argument('-r', '--resolution', default=720, type=int, help='max resolution height (default: 720)')
+parser.add_argument('-q', '--quality', default=720, type=int, choices=quality_choices, help='max quality (default: 720)', metavar='QUALITY')
+parser.add_argument('-r', '--results', default=5, type=int, choices=range(1, 51), help='max results when searching (default: 5)', metavar='RESULTS')
 parser.add_argument('-s', '--sort', action='store_const', const='date', default='relevance', help='sort by date when searching')
 required_arguments = parser.add_argument_group('required arguments')
 required_arguments.add_argument('-k', '--api-key', required=True, help='api key to use when searching')
@@ -29,7 +31,7 @@ else:
     locator = 'https://youtube.googleapis.com/youtube/v3'
     headers = dict(accept='application/json')
 
-    search_payload = dict(part='id', maxResults=arguments.number, order=arguments.sort, q=' '.join(arguments.query), type='video', key=arguments.api_key)
+    search_payload = dict(part='id', maxResults=arguments.results, order=arguments.sort, q=' '.join(arguments.query), type='video', key=arguments.api_key)
     search_response = get('{0}/search'.format(locator), headers=headers, params=search_payload)
 
     videos_payload = dict(part=['contentDetails', 'snippet'], id=[i['id']['videoId'] for i in search_response.json()['items']], key=arguments.api_key)
@@ -48,11 +50,14 @@ else:
     webpage_urls = ['https://www.youtube.com/watch?v={0}'.format(videos_items[int(s) - 1]['id']) for s in selections.split()]
     print('[ytsearch] Video(s) selected: {0}'.format(' '.join(webpage_urls)))
 
+ytdl_selector = ''.join(['(bestvideo{0}/bestvideo{1}){2}+bestaudio{3}/best{2}/bestvideo{2}+bestaudio{3}/(bestvideo{0}/bestvideo{1}/bestvideo){2}+bestaudio/'
+    .format('[vcodec^=av01]', '[vcodec=vp9]', '[height<={0}][height>{1}]'.format(quality_choices[c - 1], q), '[ext=m4a]')
+    for c, q in enumerate(quality_choices + [0]) if q < arguments.quality])[:-1]
+
 for c, u in enumerate(webpage_urls):
     while True:
         try:
-            ytdl_process = run([bin_ytdl, '--dump-json', '--format', 'bestvideo[height<={0}]+bestaudio/best[height<={0}]'.format(arguments.resolution), u],
-                stdout=PIPE, check=True, text=True)
+            ytdl_process = run([bin_ytdl, '--dump-json', '--format', ytdl_selector, u], stdout=PIPE, check=True, text=True)
         except CalledProcessError:
             continue
         except KeyboardInterrupt:
@@ -63,7 +68,8 @@ for c, u in enumerate(webpage_urls):
     ytdl_result = loads(ytdl_process.stdout)
 
     if not (c or arguments.download):
-        ytdl_formats = [f for f in ytdl_result['formats'] if f['format_id'] in ytdl_result['format_id']]
+        ytdl_format_ids = ytdl_result['format_id'].split('+')
+        ytdl_formats = [f for f in ytdl_result['formats'] if f['format_id'] in ytdl_format_ids]
 
         vlc_command = [bin_vlc, '--meta-title', splitext(ytdl_result['_filename'])[0], ytdl_formats[0]['url']]
         if len(ytdl_formats) > 1:

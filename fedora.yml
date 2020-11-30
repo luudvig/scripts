@@ -227,9 +227,6 @@
       create: yes
     loop:
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias bc='bc -l'", regexp: "^alias bc=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias bt-connect='while : ; do bluetoothctl connect  && break; done'", regexp: "^#?alias bt-connect=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias bt-disconnect='while : ; do bluetoothctl disconnect  && break; done'", regexp: "^#?alias bt-disconnect=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias bt-reconnect='bt-disconnect && bt-connect'", regexp: "^#?alias bt-reconnect=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias cp='cp -i'", regexp: "^alias cp=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias docker='podman'", regexp: "^alias docker=" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias mv='mv -i'", regexp: "^alias mv=" }
