@@ -216,6 +216,7 @@
   - git:
       repo: "{{ item.repo }}"
       dest: "{{ item.dest }}"
+      update: no
     loop:
       - { repo: "https://github.com/luudvig/scripts.git", dest: "{{ ansible_env.HOME }}/Scripts" }
 
