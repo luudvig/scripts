@@ -9,15 +9,15 @@
   - assert: { that: hostname is defined }
 
   - shell: gsettings get org.gnome.Terminal.ProfilesList default | tr -d \'
-    register: gsettings_terminal_profile
+    register: gsettings_term
     changed_when: no
 
   - set_fact:
       gsettings: "{{ gsettings | default([]) }} + [{{ item }}]"
     loop:
       - { schema: "org.gnome.Maps", key: "night-mode", value: "true" }
-      - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_terminal_profile.stdout }}/", key: "default-size-columns", value: "132" }
-      - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_terminal_profile.stdout }}/", key: "default-size-rows", value: "43" }
+      - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_term.stdout }}/", key: "default-size-columns", value: "132" }
+      - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_term.stdout }}/", key: "default-size-rows", value: "43" }
       - { schema: "org.gnome.desktop.calendar", key: "show-weekdate", value: "true" }
       - { schema: "org.gnome.desktop.interface", key: "gtk-theme", value: "'Adwaita-dark'" }
       - { schema: "org.gnome.desktop.media-handling", key: "autorun-never", value: "true" }
@@ -40,32 +40,32 @@
 
   - command: gsettings get "{{ item.schema }}{{ item.path | default() }}" "{{ item.key }}"
     loop: "{{ gsettings }}"
-    register: gsettings_previous
+    register: gsettings_prev
     changed_when: no
 
   - command: gsettings set "{{ item.schema }}{{ item.path | default() }}" "{{ item.key }}" "{{ item.value }}"
     loop: "{{ gsettings }}"
     loop_control: { index_var: idx }
-    when: item.value != gsettings_previous.results[idx].stdout
+    when: item.value != gsettings_prev.results[idx].stdout
 
   - command: find "{{ ansible_env.HOME }}/.mozilla/firefox" -maxdepth 1 -type d -name "*.default-release" -print -quit
-    register: firefox_profile
+    register: firefox_prof
     changed_when: no
 
   - shell: >
-      grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ firefox_profile.stdout }}/prefs.js" |
+      grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ firefox_prof.stdout }}/prefs.js" |
       perl -p -e 's/,\\"(customizableui-special-spring1|customizableui-special-spring2|fxa-toolbar-menu-button|home-button|library-button|sidebar-button)\\"//g'
-    register: firefox_ui_state
+    register: firefox_pref_stat
     changed_when: no
 
   - shell: >
-      grep -P -o '(?<=user_pref\("browser.pageActions.persistedActions", ).*(?=\);)' "{{ firefox_profile.stdout }}/prefs.js" |
+      grep -P -o '(?<=user_pref\("browser.pageActions.persistedActions", ).*(?=\);)' "{{ firefox_prof.stdout }}/prefs.js" |
       perl -p -e 's/(?<=\\"idsInUrlbar\\":\[)\\"pocket\\",//g'
-    register: firefox_page_actions
+    register: firefox_pref_pers
     changed_when: no
 
   - set_fact:
-      firefox_prefs: "{{ firefox_prefs | default([]) }} + [{{ item }}]"
+      firefox_pref: "{{ firefox_pref | default([]) }} + [{{ item }}]"
     loop:
       - { key: "app.shield.optoutstudies.enabled", value: "false" }
       - { key: "browser.ctrlTab.recentlyUsedOrder", value: "false" }
@@ -76,9 +76,10 @@
       - { key: "browser.newtabpage.activity-stream.feeds.topsites", value: "false" }
       - { key: "browser.newtabpage.activity-stream.showSearch", value: "false" }
       - { key: "browser.newtabpage.enabled", value: "false" }
-      - { key: "browser.pageActions.persistedActions", value: "{{ firefox_page_actions.stdout }}" }
+      - { key: "browser.pageActions.persistedActions", value: "{{ firefox_pref_pers.stdout }}" }
       - { key: "browser.startup.homepage", value: "\"about:blank\"" }
-      - { key: "browser.uiCustomization.state", value: "{{ firefox_ui_state.stdout }}" }
+      - { key: "browser.toolbars.bookmarks.visibility", value: "\"never\"" }
+      - { key: "browser.uiCustomization.state", value: "{{ firefox_pref_stat.stdout }}" }
       - { key: "browser.urlbar.suggest.bookmark", value: "false" }
       - { key: "browser.urlbar.suggest.history", value: "false" }
       - { key: "browser.urlbar.suggest.openpage", value: "false" }
@@ -96,54 +97,47 @@
       - { key: "signon.rememberSignons", value: "false" }
 
   - lineinfile:
-      path: "{{ firefox_profile.stdout }}/prefs.js"
+      path: "{{ firefox_prof.stdout }}/prefs.js"
       line: "user_pref(\"{{ item.key }}\", {{ item.value }});"
     check_mode: yes
-    loop: "{{ firefox_prefs }}"
-    register: firefox_prefs_previous
+    loop: "{{ firefox_pref }}"
+    register: firefox_pref_prev
     changed_when: no
 
   - lineinfile:
-      path: "{{ firefox_profile.stdout }}/user.js"
+      path: "{{ firefox_prof.stdout }}/user.js"
       line: "user_pref(\"{{ item.key }}\", {{ item.value }});"
       regexp: "^user_pref\\(\"{{ item.key }}\","
       create: yes
       mode: "600"
-    loop: "{{ firefox_prefs }}"
+    loop: "{{ firefox_pref }}"
     loop_control: { index_var: idx }
-    when: firefox_prefs_previous.results[idx].msg == "line added"
+    when: firefox_pref_prev.results[idx].msg == "line added"
 
   - slurp:
       src: "{{ item }}"
     loop:
-      - "{{ firefox_profile.stdout }}/handlers.json"
-      - "{{ firefox_profile.stdout }}/xulstore.json"
-    register: firefox_handlers_xulstore
+      - "{{ firefox_prof.stdout }}/handlers.json"
+      - "{{ firefox_prof.stdout }}/xulstore.json"
+    register: firefox_json
 
   - set_fact:
-      firefox_handlers_old: "{{ firefox_handlers_xulstore.results[0].content | b64decode }}"
-      firefox_handlers_new: "{{ firefox_handlers_xulstore.results[0].content | b64decode }}"
-      firefox_xulstore_old: "{{ firefox_handlers_xulstore.results[1].content | b64decode }}"
-      firefox_xulstore_new: "{{ firefox_handlers_xulstore.results[1].content | b64decode }}"
+      firefox_hand_prev: "{{ firefox_json.results[0].content | b64decode }}"
+      firefox_xuls_prev: "{{ firefox_json.results[1].content | b64decode }}"
 
   - set_fact:
-      firefox_handlers_new: "{{ firefox_handlers_new | combine({\"schemes\": {\"magnet\": {\"action\": 4}}}, recursive=True) }}"
-
-  - set_fact:
-      firefox_xulstore_new: "{{ firefox_xulstore_new | combine(item, recursive=True) }}"
-    loop:
-      - {"chrome://browser/content/browser.xhtml": {"PersonalToolbar": {"collapsed": "true"}}}
-      - {"chrome://browser/content/places/historySidebar.xhtml": {"viewButton": {"selectedsort": "lastvisited"}}}
+      firefox_hand: "{{ firefox_hand_prev | combine({\"schemes\": {\"magnet\": {\"action\": 4}}}, recursive=True) }}"
+      firefox_xuls: "{{ firefox_xuls_prev | combine({\"chrome://browser/content/places/historySidebar.xhtml\": {\"viewButton\": {\"selectedsort\": \"lastvisited\"}}}, recursive=True) }}"
 
   - copy:
       content: "{{ item.content }}"
       dest: "{{ item.dest }}"
     loop:
-      - { content: "{{ firefox_handlers_new }}", dest: "{{ firefox_profile.stdout }}/handlers.json" }
-      - { content: "{{ firefox_xulstore_new }}", dest: "{{ firefox_profile.stdout }}/xulstore.json" }
+      - { content: "{{ firefox_hand }}", dest: "{{ firefox_prof.stdout }}/handlers.json" }
+      - { content: "{{ firefox_xuls }}", dest: "{{ firefox_prof.stdout }}/xulstore.json" }
     loop_control: { index_var: idx }
-    when: (idx == 0 and firefox_handlers_old != firefox_handlers_new) or
-          (idx == 1 and firefox_xulstore_old != firefox_xulstore_new)
+    when: (idx == 0 and firefox_hand_prev != firefox_hand) or
+          (idx == 1 and firefox_xuls_prev != firefox_xuls)
 
   - dnf:
       name: "{{ item.name }}"
@@ -169,20 +163,20 @@
     loop:
       - "flatpak remotes --columns=title"
       - "flatpak list --columns=application"
-    register: flatpak_installed
+    register: flatpak_prev
     changed_when: no
 
   - command: flatpak remote-add "{{ item.name }}" "{{ item.location }}"
     become: yes
     loop:
       - { name: "flathub", location: "https://flathub.org/repo/flathub.flatpakrepo" }
-    when: item.name not in flatpak_installed.results[0].stdout_lines | lower
+    when: item.name not in flatpak_prev.results[0].stdout_lines | lower
 
   - command: flatpak install -y "{{ item.remote }}" "{{ item.ref }}"
     loop:
       - { remote: "fedora", ref: "org.gimp.GIMP" }
       - { remote: "flathub", ref: "com.spotify.Client" }
-    when: item.ref not in flatpak_installed.results[1].stdout_lines
+    when: item.ref not in flatpak_prev.results[1].stdout_lines
 
   - get_url:
       url: "{{ item.url }}"
@@ -223,30 +217,29 @@
   - lineinfile:
       path: "{{ item.path }}"
       line: "{{ item.line }}"
-      regexp: "{{ item.regexp }}"
       insertafter: "{{ item.insertafter | default('(?!)') }}"
       create: yes
     loop:
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias bc='bc -l'", regexp: "^alias bc=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias cp='cp -i'", regexp: "^alias cp=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias docker='podman'", regexp: "^alias docker=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias mv='mv -i'", regexp: "^alias mv=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'", regexp: "^#?alias rclone-copy=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'", regexp: "^#?alias rclone-sync=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'", regexp: "^alias svtplay-dl=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '", regexp: "^#?alias ytsearch=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/vim'", regexp: "^export EDITOR=", insertafter: "^(# )?export" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTCONTROL='ignoreboth'", regexp: "^export HISTCONTROL=", insertafter: "^(# )?export" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }", regexp: "^rclone-deletefile\\(\\)" }
-      - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']", regexp: "^unqualified-search-registries =" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"", regexp: "^browser " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color info white blue bold", regexp: "^color info " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus white blue bold", regexp: "^color listfocus " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus_unread white blue bold", regexp: "^color listfocus_unread " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro c set browser \"printf %u | xclip -selection clipboard\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"", regexp: "^macro c " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes", regexp: "^refresh-on-startup " }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3", regexp: "^reload-threads " }
-      - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&", regexp: "^set indentexpr" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias bc='bc -l'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias cp='cp -i'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias docker='podman'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias mv='mv -i'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/vim'", insertafter: "^(# )?export" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTCONTROL='ignoreboth'", insertafter: "^(# )?export" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }" }
+      - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color info white blue bold" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus white blue bold" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus_unread white blue bold" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro c set browser \"printf %u | xclip -selection clipboard\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes" }
+      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3" }
+      - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&" }
 
   - copy:
       content: "{{ item.content }}"

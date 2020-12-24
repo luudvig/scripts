@@ -63,11 +63,11 @@ ytdl_result = loads(ytdl_process.stdout)
 
 if not arguments.download:
     ytdl_format_ids = ytdl_result['format_id'].split('+')
-    ytdl_formats = [f for f in ytdl_result['formats'] if f['format_id'] in ytdl_format_ids]
+    ytdl_urls = [f['url'] for f in ytdl_result['formats'] if f['format_id'] in ytdl_format_ids]
 
-    vlc_command = [bin_vlc, '--meta-title', splitext(ytdl_result['_filename'])[0], ytdl_formats[0]['url']]
-    if len(ytdl_formats) > 1:
-        vlc_command.extend(['--input-slave', ytdl_formats[1]['url']])
+    vlc_command = [bin_vlc, '--meta-title', splitext(ytdl_result['_filename'])[0], ytdl_urls[0]]
+    if len(ytdl_urls) > 1:
+        vlc_command.extend(['--input-slave', ytdl_urls[1]])
 
     Popen(vlc_command, stdout=PIPE, stderr=PIPE)
 elif ytdl_result['is_live']:
