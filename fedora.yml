@@ -90,6 +90,7 @@
       - { key: "intl.regional_prefs.use_os_locales", value: "true" }
       - { key: "layout.spellcheckDefault", value: "0" }
       - { key: "media.eme.enabled", value: "true" }
+      - { key: "media.hardwaremediakeys.enabled", value: "false" }
       - { key: "permissions.default.desktop-notification", value: "2" }
       - { key: "permissions.default.geo", value: "2" }
       - { key: "privacy.donottrackheader.enabled", value: "true" }

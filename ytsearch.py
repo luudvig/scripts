@@ -14,6 +14,7 @@ quality_choices = [4320, 2160, 1440, 1080, 720, 480, 360, 240, 144]
 
 parser = ArgumentParser()
 parser.add_argument('-d', '--download', action='store_true', help='download selected video')
+parser.add_argument('-i', '--id', action='store_true', help='query argument is treated as video id')
 parser.add_argument('-q', '--quality', default=720, type=int, choices=quality_choices, help='max quality (default: 720)', metavar='QUALITY')
 parser.add_argument('-r', '--results', default=5, type=int, choices=range(1, 51), help='max results when searching (default: 5)', metavar='RESULTS')
 parser.add_argument('-s', '--sort', action='store_const', const='date', default='relevance', help='sort by date when searching')
@@ -25,8 +26,8 @@ arguments = parser.parse_args()
 bin_ytdl = run(['which', 'youtube-dl'], stdout=PIPE, check=True, text=True).stdout.rstrip()
 bin_vlc = run(['which', 'vlc'], stdout=PIPE, check=True, text=True).stdout.rstrip()
 
-if len(arguments.query) == 1 and fullmatch('https:\/\/www\.youtube\.com\/watch\?v=[a-zA-Z0-9-_]{11}', arguments.query[0]):
-    webpage_url = arguments.query[0]
+if arguments.id or fullmatch('https:\/\/(www\.)?youtu\.?be(\.com)?\/(watch\?v=)?[a-zA-Z0-9-_]{11}', arguments.query[0]):
+    webpage_id = arguments.query[0][-11:]
 else:
     locator = 'https://youtube.googleapis.com/youtube/v3'
     headers = dict(accept='application/json')
@@ -43,19 +44,17 @@ else:
             i['snippet']['title'], i['contentDetails']['duration'][2:].lower()))
 
     try:
-        selection = input('[ytsearch] Select video to stream/download [1]: ') or '1'
+        webpage_id = videos_items[int(input('[ytsearch] Select video to stream/download [1]: ') or '1') - 1]['id']
     except KeyboardInterrupt:
         exit('')
-
-    webpage_url = 'https://www.youtube.com/watch?v={0}'.format(videos_items[int(selection) - 1]['id'])
-    print('[ytsearch] Video selected: {0}'.format(webpage_url))
 
 ytdl_selector = ''.join(['bestvideo{1}[vcodec^=av01]+bestaudio{0}/best{1}{2}/bestvideo{1}{2}+bestaudio{0}/'
     .format('[ext=m4a]', '[height<={0}][height>{1}]'.format(quality_choices[c - 1], q), '[vcodec^=avc1]')
     for c, q in enumerate(quality_choices + [0]) if q < arguments.quality])[:-1]
 
 try:
-    ytdl_process = run([bin_ytdl, '--dump-json', '--format', ytdl_selector, webpage_url], stdout=PIPE, check=True, text=True)
+    ytdl_process = run([bin_ytdl, '--dump-json', '--format', ytdl_selector, 'https://www.youtube.com/watch?v={0}'.format(webpage_id)],
+        stdout=PIPE, check=True, text=True)
 except CalledProcessError:
     exit()
 
