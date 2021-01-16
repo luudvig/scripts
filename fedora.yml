@@ -81,6 +81,7 @@
       - { key: "browser.toolbars.bookmarks.visibility", value: "\"never\"" }
       - { key: "browser.uiCustomization.state", value: "{{ firefox_pref_stat.stdout }}" }
       - { key: "browser.urlbar.suggest.bookmark", value: "false" }
+      - { key: "browser.urlbar.suggest.engines", value: "false" }
       - { key: "browser.urlbar.suggest.history", value: "false" }
       - { key: "browser.urlbar.suggest.openpage", value: "false" }
       - { key: "browser.urlbar.suggest.topsites", value: "false" }

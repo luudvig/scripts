@@ -2,6 +2,7 @@
 
 from argparse import ArgumentParser
 from json import dump, loads
+from math import log10
 from os import environ, remove
 from os.path import splitext
 from re import fullmatch
@@ -23,8 +24,7 @@ required_arguments.add_argument('-k', '--api-key', required=True, help='api key 
 required_arguments.add_argument('query', nargs='+', help='query to use when searching or url to stream/download')
 arguments = parser.parse_args()
 
-bin_ytdl = run(['which', 'youtube-dl'], stdout=PIPE, check=True, text=True).stdout.rstrip()
-bin_vlc = run(['which', 'vlc'], stdout=PIPE, check=True, text=True).stdout.rstrip()
+bin_vlc, bin_ytdl = run(['which', 'vlc', 'youtube-dl'], stdout=PIPE, check=True, text=True).stdout.splitlines()
 
 if arguments.id or fullmatch('https:\/\/(www\.)?youtu\.?be(\.com)?\/(watch\?v=)?[a-zA-Z0-9-_]{11}', arguments.query[0]):
     webpage_id = arguments.query[0][-11:]
@@ -40,8 +40,8 @@ else:
     videos_items = videos_response.json()['items']
 
     for c, i in enumerate(videos_items, 1):
-        print('{0}. [{1} {2} {3}] {4} ({5})'.format(c, i['snippet']['publishedAt'][:10], i['id'], i['snippet']['channelTitle'],
-            i['snippet']['title'], i['contentDetails']['duration'][2:].lower()))
+        print('{0:>{1}}. [{2} {3} {4}] {5} ({6})'.format(c, int(log10(len(videos_items))) + 1, i['snippet']['publishedAt'][:10], i['id'],
+            i['snippet']['channelTitle'], i['snippet']['title'], i['contentDetails']['duration'][2:].lower()))
 
     try:
         webpage_id = videos_items[int(input('[ytsearch] Select video to stream/download [1]: ') or '1') - 1]['id']
