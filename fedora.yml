@@ -160,6 +160,8 @@
       - { name: "vim-enhanced" }
       - { name: "vlc" }
       - { name: "xclip" }
+    register: dnf_result
+    until: dnf_result is success
 
   - command: "{{ item }}"
     loop:
@@ -172,12 +174,16 @@
     become: yes
     loop:
       - { name: "flathub", location: "https://flathub.org/repo/flathub.flatpakrepo" }
+    register: flatpak_add_result
+    until: flatpak_add_result is success
     when: item.name not in flatpak_prev.results[0].stdout_lines | lower
 
   - command: flatpak install -y "{{ item.remote }}" "{{ item.ref }}"
     loop:
       - { remote: "fedora", ref: "org.gimp.GIMP" }
       - { remote: "flathub", ref: "com.spotify.Client" }
+    register: flatpak_install_result
+    until: flatpak_install_result is success
     when: item.ref not in flatpak_prev.results[1].stdout_lines
 
   - get_url:
@@ -187,6 +193,8 @@
     become: yes
     loop:
       - { url: "https://yt-dl.org/downloads/latest/youtube-dl", dest: "/usr/local/bin/youtube-dl" }
+    register: get_url_result
+    until: get_url_result is success
 
   - hostname:
       name: "{{ item }}"
