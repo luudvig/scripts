@@ -53,15 +53,15 @@
     changed_when: no
 
   - shell: >
-      grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ firefox_prof.stdout }}/prefs.js" |
-      perl -p -e 's/,\\"(customizableui-special-spring1|customizableui-special-spring2|fxa-toolbar-menu-button|home-button|library-button|sidebar-button)\\"//g'
-    register: firefox_pref_stat
-    changed_when: no
-
-  - shell: >
       grep -P -o '(?<=user_pref\("browser.pageActions.persistedActions", ).*(?=\);)' "{{ firefox_prof.stdout }}/prefs.js" |
       perl -p -e 's/(?<=\\"idsInUrlbar\\":\[)\\"pocket\\",//g'
     register: firefox_pref_pers
+    changed_when: no
+
+  - shell: >
+      grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ firefox_prof.stdout }}/prefs.js" |
+      perl -p -e 's/,\\"(customizableui-special-spring1|customizableui-special-spring2|fxa-toolbar-menu-button|home-button|library-button|sidebar-button)\\"//g'
+    register: firefox_pref_stat
     changed_when: no
 
   - set_fact:
@@ -71,12 +71,10 @@
       - { key: "browser.ctrlTab.recentlyUsedOrder", value: "false" }
       - { key: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", value: "false" }
       - { key: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", value: "false" }
-      - { key: "browser.newtabpage.activity-stream.feeds.section.highlights", value: "false" }
-      - { key: "browser.newtabpage.activity-stream.feeds.snippets", value: "false" }
-      - { key: "browser.newtabpage.activity-stream.feeds.topsites", value: "false" }
-      - { key: "browser.newtabpage.activity-stream.showSearch", value: "false" }
       - { key: "browser.newtabpage.enabled", value: "false" }
       - { key: "browser.pageActions.persistedActions", value: "{{ firefox_pref_pers.stdout }}" }
+      - { key: "browser.privatebrowsing.autostart", value: "true" }
+      - { key: "browser.search.suggest.enabled.private", value: "true" }
       - { key: "browser.startup.homepage", value: "\"about:blank\"" }
       - { key: "browser.toolbars.bookmarks.visibility", value: "\"never\"" }
       - { key: "browser.uiCustomization.state", value: "{{ firefox_pref_stat.stdout }}" }
@@ -86,15 +84,15 @@
       - { key: "browser.urlbar.suggest.openpage", value: "false" }
       - { key: "browser.urlbar.suggest.topsites", value: "false" }
       - { key: "datareporting.healthreport.uploadEnabled", value: "false" }
-      - { key: "dom.security.https_only_mode", value: "true" }
-      - { key: "dom.security.https_only_mode_ever_enabled", value: "true" }
+      - { key: "dom.security.https_only_mode_ever_enabled_pbm", value: "true" }
+      - { key: "dom.security.https_only_mode_pbm", value: "true" }
       - { key: "intl.regional_prefs.use_os_locales", value: "true" }
       - { key: "layout.spellcheckDefault", value: "0" }
       - { key: "media.eme.enabled", value: "true" }
       - { key: "media.hardwaremediakeys.enabled", value: "false" }
+      - { key: "media.videocontrols.picture-in-picture.video-toggle.has-used", value: "true" }
       - { key: "permissions.default.desktop-notification", value: "2" }
       - { key: "permissions.default.geo", value: "2" }
-      - { key: "privacy.donottrackheader.enabled", value: "true" }
       - { key: "signon.management.page.breach-alerts.enabled", value: "false" }
       - { key: "signon.rememberSignons", value: "false" }
 
@@ -117,29 +115,18 @@
     when: firefox_pref_prev.results[idx].msg == "line added"
 
   - slurp:
-      src: "{{ item }}"
-    loop:
-      - "{{ firefox_prof.stdout }}/handlers.json"
-      - "{{ firefox_prof.stdout }}/xulstore.json"
-    register: firefox_json
+      src: "{{ firefox_prof.stdout }}/handlers.json"
+    register: firefox_hand_prev
 
   - set_fact:
-      firefox_hand_prev: "{{ firefox_json.results[0].content | b64decode }}"
-      firefox_xuls_prev: "{{ firefox_json.results[1].content | b64decode }}"
-
-  - set_fact:
-      firefox_hand: "{{ firefox_hand_prev | combine({\"schemes\": {\"magnet\": {\"action\": 4}}}, recursive=True) }}"
-      firefox_xuls: "{{ firefox_xuls_prev | combine({\"chrome://browser/content/places/historySidebar.xhtml\": {\"viewButton\": {\"selectedsort\": \"lastvisited\"}}}, recursive=True) }}"
+      firefox_hand: "{{ firefox_hand_prev.content | b64decode | from_json | combine({\"schemes\": {\"magnet\": {\"action\": 4}}}, recursive=True) }}"
 
   - copy:
       content: "{{ item.content }}"
       dest: "{{ item.dest }}"
     loop:
       - { content: "{{ firefox_hand }}", dest: "{{ firefox_prof.stdout }}/handlers.json" }
-      - { content: "{{ firefox_xuls }}", dest: "{{ firefox_prof.stdout }}/xulstore.json" }
-    loop_control: { index_var: idx }
-    when: (idx == 0 and firefox_hand_prev != firefox_hand) or
-          (idx == 1 and firefox_xuls_prev != firefox_xuls)
+    when: firefox_hand_prev.content | b64decode | from_json != firefox_hand
 
   - dnf:
       name: "{{ item.name }}"
@@ -238,8 +225,8 @@
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/vim'", insertafter: "^(# )?export" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTCONTROL='ignoreboth'", insertafter: "^(# )?export" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/env vim'", insertafter: "^(# )?export" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTFILE=", insertafter: "^(# )?export" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }" }
       - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']" }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"" }
@@ -256,4 +243,4 @@
       dest: "{{ item.dest }}"
       mode: "775"
     loop:
-      - { content: "#/bin/sh\n/usr/bin/firefox \"$@\" &\n", dest: "{{ ansible_env.HOME }}/.newsboat/browser.sh" }
+      - { content: "#!/usr/bin/env bash\n/usr/bin/env firefox \"$@\" &\n", dest: "{{ ansible_env.HOME }}/.newsboat/browser.sh" }
