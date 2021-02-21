@@ -1,12 +1,8 @@
 ---
 
-# ansible-playbook -e hostname=<hostname> -K fedora.yml
-
 - hosts: 127.0.0.1
   connection: local
   tasks:
-
-  - assert: { that: hostname is defined }
 
   - shell: gsettings get org.gnome.Terminal.ProfilesList default | tr -d \'
     register: gsettings_term
@@ -128,50 +124,71 @@
       - { content: "{{ firefox_hand }}", dest: "{{ firefox_prof.stdout }}/handlers.json" }
     when: firefox_hand_prev.content | b64decode | from_json != firefox_hand
 
-  - dnf:
-      name: "{{ item.name }}"
-      disable_gpg_check: "{{ item.disable_gpg_check | default('no') }}"
-    become: yes
-    loop:
-      - { name: "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_distribution_major_version }}.noarch.rpm", disable_gpg_check: yes }
-      - { name: "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_distribution_major_version }}.noarch.rpm", disable_gpg_check: yes }
-      - { name: "ffmpeg" }
-      - { name: "gnome-subtitles" }
-      - { name: "gnome-tweaks" }
-      - { name: "keepassxc" }
-      - { name: "newsboat" }
-      - { name: "rclone" }
-      - { name: "tlp" }
-      - { name: "tlp-rdw" }
-      - { name: "transmission-gtk" }
-      - { name: "vim-enhanced" }
-      - { name: "vlc" }
-      - { name: "xclip" }
-    register: dnf_result
-    until: dnf_result is success
+  - package_facts:
+      manager: rpm
 
-  - command: "{{ item }}"
+  - set_fact:
+      dnf_repositories: "{{ dnf_repositories | default([]) }} + ['{{ item.url }}']"
     loop:
-      - "flatpak remotes --columns=title"
-      - "flatpak list --columns=application"
-    register: flatpak_prev
+      - { name: "rpmfusion-free-release", url: "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_distribution_major_version }}.noarch.rpm" }
+      - { name: "rpmfusion-nonfree-release", url: "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_distribution_major_version }}.noarch.rpm" }
+    when: item.name not in ansible_facts.packages
+
+  - dnf:
+      name: "{{ dnf_repositories }}"
+      disable_gpg_check: yes
+    become: yes
+    register: dnf_repositories_result
+    until: dnf_repositories_result is success
+    when: dnf_repositories is defined
+
+  - set_fact:
+      dnf_packages: "{{ dnf_packages | default([]) }} + ['{{ item }}']"
+    loop:
+      - "ffmpeg"
+      - "gnome-subtitles"
+      - "gnome-tweaks"
+      - "keepassxc"
+      - "newsboat"
+      - "rclone"
+      - "tlp"
+      - "tlp-rdw"
+      - "transmission-gtk"
+      - "vim-enhanced"
+      - "vlc"
+      - "xclip"
+    when: item not in ansible_facts.packages
+
+  - dnf:
+      name: "{{ dnf_packages }}"
+    become: yes
+    register: dnf_packages_result
+    until: dnf_packages_result is success
+    when: dnf_packages is defined
+
+  - command: flatpak remotes --columns=title
+    register: flatpak_remotes
     changed_when: no
 
   - command: flatpak remote-add "{{ item.name }}" "{{ item.location }}"
     become: yes
     loop:
       - { name: "flathub", location: "https://flathub.org/repo/flathub.flatpakrepo" }
-    register: flatpak_add_result
-    until: flatpak_add_result is success
-    when: item.name not in flatpak_prev.results[0].stdout_lines | lower
+    register: flatpak_remotes_result
+    until: flatpak_remotes_result is success
+    when: item.name not in flatpak_remotes.stdout_lines | lower
+
+  - command: flatpak list --columns=application
+    register: flatpak_apps
+    changed_when: no
 
   - command: flatpak install -y "{{ item.remote }}" "{{ item.ref }}"
     loop:
       - { remote: "fedora", ref: "org.gimp.GIMP" }
       - { remote: "flathub", ref: "com.spotify.Client" }
-    register: flatpak_install_result
-    until: flatpak_install_result is success
-    when: item.ref not in flatpak_prev.results[1].stdout_lines
+    register: flatpak_apps_result
+    until: flatpak_apps_result is success
+    when: item.ref not in flatpak_apps.stdout_lines
 
   - get_url:
       url: "{{ item.url }}"
@@ -187,7 +204,7 @@
       name: "{{ item }}"
       use: systemd
     loop:
-      - "{{ hostname }}"
+      - "{{ ansible_user_id }}-{{ ansible_product_version.split()[0] | lower }}"
 
   - sysctl:
       name: "{{ item.name }}"
