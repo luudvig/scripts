@@ -240,7 +240,8 @@
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias mv='mv -i'" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='docker run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='podman run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-os='$HOME/Scripts/svtplay-os.py'" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/env vim'", insertafter: "^(# )?export" }
       - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTFILE=", insertafter: "^(# )?export" }
