@@ -31,8 +31,8 @@
       - { schema: "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding", path: ":/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/", key: "name", value: "'Terminal'" }
       - { schema: "org.gnome.settings-daemon.plugins.power", key: "idle-dim", value: "false" }
       - { schema: "org.gnome.settings-daemon.plugins.power", key: "sleep-inactive-battery-type", value: "'nothing'" }
-      - { schema: "org.gnome.shell", key: "enabled-extensions", value: "@as []" }
-      - { schema: "org.gnome.shell", key: "favorite-apps", value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Terminal.desktop', 'com.spotify.Client.desktop']" }
+      - { schema: "org.gnome.shell", key: "enabled-extensions", value: "['places-menu@gnome-shell-extensions.gcampax.github.com']" }
+      - { schema: "org.gnome.shell", key: "favorite-apps", value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Terminal.desktop', 'spotify.desktop', 'org.keepassxc.KeePassXC.desktop']" }
 
   - command: gsettings get "{{ item.schema }}{{ item.path | default() }}" "{{ item.key }}"
     loop: "{{ gsettings }}"
@@ -146,9 +146,12 @@
       dnf_packages: "{{ dnf_packages | default([]) }} + ['{{ item }}']"
     loop:
       - "ffmpeg"
+      - "gimp"
+      - "gnome-extensions-app"
       - "gnome-subtitles"
       - "gnome-tweaks"
       - "keepassxc"
+      - "lpf-spotify-client"
       - "newsboat"
       - "rclone"
       - "tlp"
@@ -165,30 +168,6 @@
     register: dnf_packages_result
     until: dnf_packages_result is success
     when: dnf_packages is defined
-
-  - command: flatpak remotes --columns=title
-    register: flatpak_remotes
-    changed_when: no
-
-  - command: flatpak remote-add "{{ item.name }}" "{{ item.location }}"
-    become: yes
-    loop:
-      - { name: "flathub", location: "https://flathub.org/repo/flathub.flatpakrepo" }
-    register: flatpak_remotes_result
-    until: flatpak_remotes_result is success
-    when: item.name not in flatpak_remotes.stdout_lines | lower
-
-  - command: flatpak list --columns=application
-    register: flatpak_apps
-    changed_when: no
-
-  - command: flatpak install -y "{{ item.remote }}" "{{ item.ref }}"
-    loop:
-      - { remote: "fedora", ref: "org.gimp.GIMP" }
-      - { remote: "flathub", ref: "com.spotify.Client" }
-    register: flatpak_apps_result
-    until: flatpak_apps_result is success
-    when: item.ref not in flatpak_apps.stdout_lines
 
   - get_url:
       url: "{{ item.url }}"
@@ -231,21 +210,20 @@
   - lineinfile:
       path: "{{ item.path }}"
       line: "{{ item.line }}"
-      insertafter: "{{ item.insertafter | default('(?!)') }}"
       create: yes
     loop:
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias bc='bc -l'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias cp='cp -i'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias docker='podman'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias mv='mv -i'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-dl='podman run -it --rm --security-opt label=disable -v $HOME/Downloads:/data spaam/svtplay-dl'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "alias svtplay-os='$HOME/Scripts/svtplay-os.py'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export EDITOR='/usr/bin/env vim'", insertafter: "^(# )?export" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "export HISTFILE=", insertafter: "^(# )?export" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias cp='cp -i'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias docker='podman'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias mv='mv -i'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias svtplay-dl='podman run -it --rm -v $HOME/Downloads:/data:Z spaam/svtplay-dl'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias svtplay-os='$HOME/Scripts/svtplay-os.py'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/exports.bash", line: "export EDITOR='/usr/bin/env vim'" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/exports.bash", line: "export HISTFILE=" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/functions.bash", line: "bcl() { echo \"$1\" | bc -l; }" }
+      - { path: "{{ ansible_env.HOME }}/.bashrc.d/functions.bash", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }" }
       - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']" }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"" }
       - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color info white blue bold" }

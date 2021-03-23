@@ -15,8 +15,8 @@ required_args.add_argument('urls', nargs='+', help='url(s) to download', metavar
 args = parser.parse_args()
 
 podman_bin = run(['which', 'podman'], stdout=PIPE, check=True, text=True).stdout.rstrip()
-podman_cmd = [podman_bin, 'run', '--interactive', '--rm', '--security-opt', 'label=disable',
-    '--tty', '--volume', '{0}/Downloads:/data'.format(environ['HOME']), 'spaam/svtplay-dl']
+podman_cmd = [podman_bin, 'run', '--interactive', '--rm', '--tty', '--volume',
+    '{0}/Downloads:/data:Z'.format(environ['HOME']), 'spaam/svtplay-dl']
 
 if args.username and args.password:
     podman_cmd.extend(['--username', args.username, '--password', args.password])
