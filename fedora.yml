@@ -1,189 +1,14 @@
 ---
 
-- hosts: 127.0.0.1
-  connection: local
+- hosts: localhost
   tasks:
 
-  - shell: gsettings get org.gnome.Terminal.ProfilesList default | tr -d \'
-    register: gsettings_term
-    changed_when: no
-
-  - set_fact:
-      gsettings: "{{ gsettings | default([]) }} + [{{ item }}]"
-    loop:
-      - { schema: "org.gnome.Maps", key: "night-mode", value: "true" }
-      - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_term.stdout }}/", key: "default-size-columns", value: "132" }
-      - { schema: "org.gnome.Terminal.Legacy.Profile", path: ":/org/gnome/terminal/legacy/profiles:/:{{ gsettings_term.stdout }}/", key: "default-size-rows", value: "43" }
-      - { schema: "org.gnome.desktop.calendar", key: "show-weekdate", value: "true" }
-      - { schema: "org.gnome.desktop.interface", key: "gtk-theme", value: "'Adwaita-dark'" }
-      - { schema: "org.gnome.desktop.media-handling", key: "autorun-never", value: "true" }
-      - { schema: "org.gnome.desktop.notifications", key: "show-in-lock-screen", value: "false" }
-      - { schema: "org.gnome.desktop.privacy", key: "remember-recent-files", value: "false" }
-      - { schema: "org.gnome.desktop.privacy", key: "remove-old-temp-files", value: "true" }
-      - { schema: "org.gnome.desktop.session", key: "idle-delay", value: "uint32 0" }
-      - { schema: "org.gnome.desktop.wm.preferences", key: "button-layout", value: "'appmenu:minimize,maximize,close'" }
-      - { schema: "org.gnome.nautilus.preferences", key: "default-folder-viewer", value: "'list-view'" }
-      - { schema: "org.gnome.settings-daemon.plugins.color", key: "night-light-enabled", value: "true" }
-      - { schema: "org.gnome.settings-daemon.plugins.media-keys", key: "control-center", value: "['Tools']" }
-      - { schema: "org.gnome.settings-daemon.plugins.media-keys", key: "custom-keybindings", value: "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']" }
-      - { schema: "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding", path: ":/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/", key: "binding", value: "'<Primary><Alt>t'" }
-      - { schema: "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding", path: ":/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/", key: "command", value: "'gnome-terminal'" }
-      - { schema: "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding", path: ":/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/", key: "name", value: "'Terminal'" }
-      - { schema: "org.gnome.settings-daemon.plugins.power", key: "idle-dim", value: "false" }
-      - { schema: "org.gnome.settings-daemon.plugins.power", key: "sleep-inactive-battery-type", value: "'nothing'" }
-      - { schema: "org.gnome.shell", key: "enabled-extensions", value: "['places-menu@gnome-shell-extensions.gcampax.github.com']" }
-      - { schema: "org.gnome.shell", key: "favorite-apps", value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Terminal.desktop', 'spotify.desktop', 'org.keepassxc.KeePassXC.desktop']" }
-
-  - command: gsettings get "{{ item.schema }}{{ item.path | default() }}" "{{ item.key }}"
-    loop: "{{ gsettings }}"
-    register: gsettings_prev
-    changed_when: no
-
-  - command: gsettings set "{{ item.schema }}{{ item.path | default() }}" "{{ item.key }}" "{{ item.value }}"
-    loop: "{{ gsettings }}"
-    loop_control: { index_var: idx }
-    when: item.value != gsettings_prev.results[idx].stdout
-
-  - command: find "{{ ansible_env.HOME }}/.mozilla/firefox" -maxdepth 1 -type d -name "*.default-release" -print -quit
-    register: firefox_prof
-    changed_when: no
-
-  - shell: >
-      grep -P -o '(?<=user_pref\("browser.pageActions.persistedActions", ).*(?=\);)' "{{ firefox_prof.stdout }}/prefs.js" |
-      perl -p -e 's/(?<=\\"idsInUrlbar\\":\[)\\"pocket\\",//g'
-    register: firefox_pref_pers
-    changed_when: no
-
-  - shell: >
-      grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ firefox_prof.stdout }}/prefs.js" |
-      perl -p -e 's/,\\"(customizableui-special-spring1|customizableui-special-spring2|fxa-toolbar-menu-button|home-button|library-button|sidebar-button)\\"//g'
-    register: firefox_pref_stat
-    changed_when: no
-
-  - set_fact:
-      firefox_pref: "{{ firefox_pref | default([]) }} + [{{ item }}]"
-    loop:
-      - { key: "app.shield.optoutstudies.enabled", value: "false" }
-      - { key: "browser.ctrlTab.recentlyUsedOrder", value: "false" }
-      - { key: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", value: "false" }
-      - { key: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", value: "false" }
-      - { key: "browser.newtabpage.enabled", value: "false" }
-      - { key: "browser.pageActions.persistedActions", value: "{{ firefox_pref_pers.stdout }}" }
-      - { key: "browser.privatebrowsing.autostart", value: "true" }
-      - { key: "browser.search.suggest.enabled.private", value: "true" }
-      - { key: "browser.startup.homepage", value: "\"about:blank\"" }
-      - { key: "browser.toolbars.bookmarks.visibility", value: "\"never\"" }
-      - { key: "browser.uiCustomization.state", value: "{{ firefox_pref_stat.stdout }}" }
-      - { key: "browser.urlbar.suggest.bookmark", value: "false" }
-      - { key: "browser.urlbar.suggest.engines", value: "false" }
-      - { key: "browser.urlbar.suggest.history", value: "false" }
-      - { key: "browser.urlbar.suggest.openpage", value: "false" }
-      - { key: "browser.urlbar.suggest.topsites", value: "false" }
-      - { key: "datareporting.healthreport.uploadEnabled", value: "false" }
-      - { key: "dom.security.https_only_mode_ever_enabled_pbm", value: "true" }
-      - { key: "dom.security.https_only_mode_pbm", value: "true" }
-      - { key: "intl.regional_prefs.use_os_locales", value: "true" }
-      - { key: "layout.spellcheckDefault", value: "0" }
-      - { key: "media.eme.enabled", value: "true" }
-      - { key: "media.hardwaremediakeys.enabled", value: "false" }
-      - { key: "media.videocontrols.picture-in-picture.video-toggle.has-used", value: "true" }
-      - { key: "permissions.default.desktop-notification", value: "2" }
-      - { key: "permissions.default.geo", value: "2" }
-      - { key: "signon.management.page.breach-alerts.enabled", value: "false" }
-      - { key: "signon.rememberSignons", value: "false" }
-
-  - lineinfile:
-      path: "{{ firefox_prof.stdout }}/prefs.js"
-      line: "user_pref(\"{{ item.key }}\", {{ item.value }});"
-    check_mode: yes
-    loop: "{{ firefox_pref }}"
-    register: firefox_pref_prev
-    changed_when: no
-
-  - lineinfile:
-      path: "{{ firefox_prof.stdout }}/user.js"
-      line: "user_pref(\"{{ item.key }}\", {{ item.value }});"
-      regexp: "^user_pref\\(\"{{ item.key }}\","
-      create: yes
-      mode: "600"
-    loop: "{{ firefox_pref }}"
-    loop_control: { index_var: idx }
-    when: firefox_pref_prev.results[idx].msg == "line added"
-
-  - slurp:
-      src: "{{ firefox_prof.stdout }}/handlers.json"
-    register: firefox_hand_prev
-
-  - set_fact:
-      firefox_hand: "{{ firefox_hand_prev.content | b64decode | from_json | combine({\"schemes\": {\"magnet\": {\"action\": 4}}}, recursive=True) }}"
-
-  - copy:
-      content: "{{ item.content }}"
-      dest: "{{ item.dest }}"
-    loop:
-      - { content: "{{ firefox_hand }}", dest: "{{ firefox_prof.stdout }}/handlers.json" }
-    when: firefox_hand_prev.content | b64decode | from_json != firefox_hand
-
-  - package_facts:
-      manager: rpm
-
-  - set_fact:
-      dnf_repositories: "{{ dnf_repositories | default([]) }} + ['{{ item.url }}']"
-    loop:
-      - { name: "rpmfusion-free-release", url: "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_distribution_major_version }}.noarch.rpm" }
-      - { name: "rpmfusion-nonfree-release", url: "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_distribution_major_version }}.noarch.rpm" }
-    when: item.name not in ansible_facts.packages
-
-  - dnf:
-      name: "{{ dnf_repositories }}"
-      disable_gpg_check: yes
-    become: yes
-    register: dnf_repositories_result
-    until: dnf_repositories_result is success
-    when: dnf_repositories is defined
-
-  - set_fact:
-      dnf_packages: "{{ dnf_packages | default([]) }} + ['{{ item }}']"
-    loop:
-      - "ffmpeg"
-      - "gimp"
-      - "gnome-extensions-app"
-      - "gnome-subtitles"
-      - "gnome-tweaks"
-      - "keepassxc"
-      - "lpf-spotify-client"
-      - "newsboat"
-      - "rclone"
-      - "tlp"
-      - "tlp-rdw"
-      - "transmission-gtk"
-      - "vim-enhanced"
-      - "vlc"
-      - "xclip"
-    when: item not in ansible_facts.packages
-
-  - dnf:
-      name: "{{ dnf_packages }}"
-    become: yes
-    register: dnf_packages_result
-    until: dnf_packages_result is success
-    when: dnf_packages is defined
-
-  - get_url:
-      url: "{{ item.url }}"
-      dest: "{{ item.dest }}"
-      mode: "755"
-    become: yes
-    loop:
-      - { url: "https://yt-dl.org/downloads/latest/youtube-dl", dest: "/usr/local/bin/youtube-dl" }
-    register: get_url_result
-    until: get_url_result is success
-
   - hostname:
-      name: "{{ item }}"
-      use: systemd
+      name: "{{ item.name }}"
+      use: "{{ item.use }}"
     loop:
-      - "{{ ansible_user_id }}-{{ ansible_product_version.split()[0] | lower }}"
+      - name: "{{ ansible_facts.user_id }}-{{ ansible_facts.product_version.split()[0] | lower }}"
+        use: systemd
 
   - sysctl:
       name: "{{ item.name }}"
@@ -191,52 +16,269 @@
       sysctl_file: "{{ item.sysctl_file }}"
     become: yes
     loop:
-      - { name: "vm.swappiness", value: "10", sysctl_file: "/etc/sysctl.d/99-swappiness.conf" }
+      - name: vm.swappiness
+        value: 10
+        sysctl_file: /etc/sysctl.d/99-swappiness.conf
 
-  - systemd:
-      name: "{{ item }}"
-      masked: yes
+  - package_facts:
+      manager: "{{ item.manager }}"
+    loop:
+      - manager: rpm
+
+  - set_fact:
+      dnf_repos: "{{ dnf_repos | default([]) }} + ['{{ item.url }}']"
+    loop:
+      - name: rpmfusion-free-release
+        url: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_facts.distribution_major_version }}.noarch.rpm
+      - name: rpmfusion-nonfree-release
+        url: https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_facts.distribution_major_version }}.noarch.rpm
+    when: item.name not in ansible_facts.packages
+
+  - set_fact:
+      dnf_packages: "{{ dnf_packages | default([]) }} + ['{{ item.name }}']"
+    loop:
+      - name: ffmpeg
+      - name: gimp
+      - name: gnome-extensions-app
+      - name: gnome-subtitles
+      - name: gnome-tweaks
+      - name: keepassxc
+      - name: lpf-spotify-client
+      - name: newsboat
+      - name: python3-psutil
+      - name: rclone
+      - name: tlp
+      - name: tlp-rdw
+      - name: transmission-gtk
+      - name: vim-enhanced
+      - name: vlc
+      - name: xclip
+    when: item.name not in ansible_facts.packages
+
+  - dnf:
+      name: "{{ item.name }}"
+      disable_gpg_check: "{{ item.disable_gpg_check }}"
     become: yes
     loop:
-      - "systemd-rfkill.socket"
+      - name: "{{ dnf_repos | default([]) }}"
+        disable_gpg_check: yes
+      - name: "{{ dnf_packages | default([]) }}"
+        disable_gpg_check: no
+    register: dnf_result
+    until: dnf_result is succeeded
+    when: item.name | length > 0 and (dnf_result is not defined or dnf_result is succeeded)
+
+  - systemd:
+      name: "{{ item.name }}"
+      masked: "{{ item.masked }}"
+    become: yes
+    loop:
+      - name: systemd-rfkill.socket
+        masked: yes
+
+  - get_url:
+      url: "{{ item.url }}"
+      dest: "{{ item.dest }}"
+      mode: 0755
+    become: yes
+    loop:
+      - url: https://yt-dl.org/downloads/latest/youtube-dl
+        dest: /usr/local/bin/youtube-dl
+    register: get_url_result
+    until: get_url_result is succeeded
+
+  - find:
+      paths: "{{ item.paths }}"
+      patterns: "{{ item.patterns }}"
+      file_type: "{{ item.file_type }}"
+    loop:
+      - paths: "{{ ansible_facts.env.HOME }}/.mozilla/firefox"
+        patterns: "*.default-release"
+        file_type: directory
+    register: find_result
+    failed_when: find_result.matched != 1
+
+  - shell:
+      cmd: "{{ item.cmd }}"
+    check_mode: no
+    loop:
+      - cmd: >
+          grep -P -o '(?<=user_pref\("browser.pageActions.persistedActions", ).*(?=\);)' "{{ find_result.results[0].files[0].path }}/prefs.js" |
+          perl -p -e 's/(?<=\\"idsInUrlbar\\":\[)\\"pocket\\",//g'
+      - cmd: >
+          grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ find_result.results[0].files[0].path }}/prefs.js" |
+          perl -p -e 's/,\\"(customizableui-special-spring1|customizableui-special-spring2|fxa-toolbar-menu-button|home-button|library-button|sidebar-button)\\"//g'
+    register: shell_result
+    changed_when: no
+
+  - lineinfile:
+      path: "{{ find_result.results[0].files[0].path }}/prefs.js"
+      line: "{{ item.line }}"
+    check_mode: yes
+    loop:
+      - line: user_pref("app.shield.optoutstudies.enabled", false);
+      - line: user_pref("browser.ctrlTab.recentlyUsedOrder", false);
+      - line: user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", false);
+      - line: user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", false);
+      - line: user_pref("browser.newtabpage.enabled", false);
+      - line: user_pref("browser.pageActions.persistedActions", {{ shell_result.results[0].stdout }});
+      - line: user_pref("browser.privatebrowsing.autostart", true);
+      - line: user_pref("browser.search.suggest.enabled.private", true);
+      - line: user_pref("browser.startup.homepage", "about:blank");
+      - line: user_pref("browser.toolbars.bookmarks.visibility", "never");
+      - line: user_pref("browser.uiCustomization.state", {{ shell_result.results[1].stdout }});
+      - line: user_pref("browser.urlbar.suggest.bookmark", false);
+      - line: user_pref("browser.urlbar.suggest.engines", false);
+      - line: user_pref("browser.urlbar.suggest.history", false);
+      - line: user_pref("browser.urlbar.suggest.openpage", false);
+      - line: user_pref("browser.urlbar.suggest.topsites", false);
+      - line: user_pref("datareporting.healthreport.uploadEnabled", false);
+      - line: user_pref("dom.security.https_only_mode_ever_enabled_pbm", true);
+      - line: user_pref("dom.security.https_only_mode_pbm", true);
+      - line: user_pref("intl.regional_prefs.use_os_locales", true);
+      - line: user_pref("layout.spellcheckDefault", 0);
+      - line: user_pref("media.hardwaremediakeys.enabled", false);
+      - line: user_pref("media.videocontrols.picture-in-picture.video-toggle.has-used", true);
+      - line: user_pref("permissions.default.desktop-notification", 2);
+      - line: user_pref("permissions.default.geo", 2);
+      - line: user_pref("signon.management.page.breach-alerts.enabled", false);
+      - line: user_pref("signon.rememberSignons", false);
+    register: lineinfile_result
+    changed_when: no
+
+  - lineinfile:
+      path: "{{ find_result.results[0].files[0].path }}/user.js"
+      line: "{{ item.line }}"
+      regexp: "^{{ item.line.split(',')[0] | replace('(', '\\(') }},"
+      create: yes
+      mode: 0600
+    loop: "{{ lineinfile_result.results | map('json_query', '{line: item.line, msg: msg}') | list }}"
+    when: item.msg == "line added"
+
+  - slurp:
+      src: "{{ item.src }}"
+    loop:
+      - src: "{{ find_result.results[0].files[0].path }}/handlers.json"
+    register: slurp_result
+
+  - copy:
+      content: "{{ item.content }}"
+      dest: "{{ item.dest }}"
+    loop:
+      - content: "{{ slurp_result.results[0].content | b64decode | from_json | combine({'schemes': {'magnet': {'action': 4}}}, recursive=True) }}"
+        dest: "{{ find_result.results[0].files[0].path }}/handlers.json"
+    when: slurp_result.results[0].content | b64decode | from_json != item.content
+
+  - command:
+      cmd: "{{ item.cmd }}"
+    check_mode: no
+    loop:
+      - cmd: gsettings get org.gnome.Terminal.ProfilesList default
+    register: command_result
+    changed_when: no
+
+  - dconf:
+      key: "{{ item.key }}"
+      value: "{{ item.value | string }}"
+    loop:
+      - key: /org/gnome/desktop/calendar/show-weekdate
+        value: "true"
+      - key: /org/gnome/desktop/interface/gtk-theme
+        value: "'Adwaita-dark'"
+      - key: /org/gnome/desktop/media-handling/autorun-never
+        value: "true"
+      - key: /org/gnome/desktop/notifications/show-in-lock-screen
+        value: "false"
+      - key: /org/gnome/desktop/privacy/remember-recent-files
+        value: "false"
+      - key: /org/gnome/desktop/privacy/remove-old-temp-files
+        value: "true"
+      - key: /org/gnome/desktop/session/idle-delay
+        value: "uint32 0"
+      - key: /org/gnome/desktop/wm/preferences/button-layout
+        value: "'appmenu:minimize,maximize,close'"
+      - key: /org/gnome/maps/night-mode
+        value: "true"
+      - key: /org/gnome/nautilus/preferences/default-folder-viewer
+        value: "'list-view'"
+      - key: /org/gnome/settings-daemon/plugins/color/night-light-enabled
+        value: "true"
+      - key: /org/gnome/settings-daemon/plugins/media-keys/control-center
+        value: "['Tools']"
+      - key: /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings
+        value: "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']"
+      - key: /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/binding
+        value: "'<Primary><Alt>t'"
+      - key: /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/command
+        value: "'gnome-terminal'"
+      - key: /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/name
+        value: "'Terminal'"
+      - key: /org/gnome/settings-daemon/plugins/power/idle-dim
+        value: "false"
+      - key: /org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type
+        value: "'nothing'"
+      - key: /org/gnome/shell/enabled-extensions
+        value: "['places-menu@gnome-shell-extensions.gcampax.github.com']"
+      - key: /org/gnome/shell/favorite-apps
+        value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Terminal.desktop', 'spotify.desktop', 'org.keepassxc.KeePassXC.desktop']"
+      - key: /org/gnome/terminal/legacy/profiles:/:{{ command_result.results[0].stdout | trim("'") }}/default-size-columns
+        value: "132"
+      - key: /org/gnome/terminal/legacy/profiles:/:{{ command_result.results[0].stdout | trim("'") }}/default-size-rows
+        value: "43"
 
   - git:
       repo: "{{ item.repo }}"
       dest: "{{ item.dest }}"
       update: no
     loop:
-      - { repo: "https://github.com/luudvig/scripts.git", dest: "{{ ansible_env.HOME }}/Scripts" }
+      - repo: https://github.com/luudvig/scripts.git
+        dest: "{{ ansible_facts.env.HOME }}/Scripts"
 
-  - lineinfile:
+  - blockinfile:
       path: "{{ item.path }}"
-      line: "{{ item.line }}"
+      block: "{{ item.block }}"
+      marker: "{{ item.marker | default(omit) }}"
       create: yes
     loop:
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias cp='cp -i'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias docker='podman'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias mv='mv -i'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "#alias rclone-copy='rclone copy  remote: --exclude *.swp --update'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "#alias rclone-sync='rclone sync remote:  --exclude *.swp --update'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias svtplay-dl='podman run -it --rm -v $HOME/Downloads:/data:Z spaam/svtplay-dl'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "alias svtplay-os='$HOME/Scripts/svtplay-os.py'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/aliases.bash", line: "#alias ytsearch='$HOME/Scripts/ytsearch.py -k '" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/exports.bash", line: "export EDITOR='/usr/bin/env vim'" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/exports.bash", line: "export HISTFILE=" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/functions.bash", line: "bcl() { echo \"$1\" | bc -l; }" }
-      - { path: "{{ ansible_env.HOME }}/.bashrc.d/functions.bash", line: "rclone-deletefile() { rclone deletefile \"remote:$1\" && rm \"$1\"; }" }
-      - { path: "{{ ansible_env.HOME }}/.config/containers/registries.conf", line: "unqualified-search-registries = ['docker.io']" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "browser \"$HOME/.newsboat/browser.sh\"" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color info white blue bold" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus white blue bold" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "color listfocus_unread white blue bold" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "macro c set browser \"printf %u | xclip -selection clipboard\" ; open-in-browser ; set browser \"$HOME/.newsboat/browser.sh\"" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "refresh-on-startup yes" }
-      - { path: "{{ ansible_env.HOME }}/.newsboat/config", line: "reload-threads 3" }
-      - { path: "{{ ansible_env.HOME }}/.vimrc", line: "set indentexpr&" }
+      - path: "{{ ansible_facts.env.HOME }}/.bashrc.d/aliases.bash"
+        block: |
+          #alias rclone-copy='rclone copy  remote: --exclude *.swp --update'
+          #alias rclone-sync='rclone sync remote:  --exclude *.swp --update'
+          #alias ytsearch='$HOME/Scripts/ytsearch.py -k '
+          alias cp='cp -i'
+          alias docker='podman'
+          alias mv='mv -i'
+          alias svtplay-dl='podman run -it --rm -v $HOME/Downloads:/data:Z spaam/svtplay-dl'
+          alias svtplay-os='$HOME/Scripts/svtplay-os.py'
+      - path: "{{ ansible_facts.env.HOME }}/.bashrc.d/exports.bash"
+        block: |
+          export EDITOR='/usr/bin/env vim'
+          export HISTFILE=
+      - path: "{{ ansible_facts.env.HOME }}/.bashrc.d/functions.bash"
+        block: |
+          bcl() { echo "$1" | bc -l; }
+          rclone-deletefile() { rclone deletefile "remote:$1" && rm "$1"; }
+      - path: "{{ ansible_facts.env.HOME }}/.config/containers/registries.conf"
+        block: |
+          unqualified-search-registries = ['docker.io']
+      - path: "{{ ansible_facts.env.HOME }}/.newsboat/config"
+        block: |
+          browser "$HOME/.newsboat/browser.sh"
+          color info white blue bold
+          color listfocus white blue bold
+          color listfocus_unread white blue bold
+          macro c set browser "printf %u | xclip -selection clipboard" ; open-in-browser ; set browser "$HOME/.newsboat/browser.sh"
+          refresh-on-startup yes
+          reload-threads 3
+      - path: "{{ ansible_facts.env.HOME }}/.vimrc"
+        block: |
+          set indentexpr&
+        marker: "\" {mark} ANSIBLE MANAGED BLOCK"
 
   - copy:
       content: "{{ item.content }}"
       dest: "{{ item.dest }}"
-      mode: "775"
+      mode: 0775
     loop:
-      - { content: "#!/usr/bin/env bash\n/usr/bin/env firefox \"$@\" &\n", dest: "{{ ansible_env.HOME }}/.newsboat/browser.sh" }
+      - content: "#!/usr/bin/env bash\n/usr/bin/env firefox \"$@\" &\n"
+        dest: "{{ ansible_facts.env.HOME }}/.newsboat/browser.sh"
