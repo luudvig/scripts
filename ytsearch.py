@@ -2,7 +2,6 @@
 
 from argparse import ArgumentParser
 from json import dump, loads
-from math import log10
 from os import environ, remove
 from os.path import splitext
 from re import fullmatch
@@ -40,7 +39,7 @@ else:
     videos_items = videos_response.json()['items']
 
     for c, i in enumerate(videos_items, 1):
-        print('{0:>{1}}. [{2} {3} {4}] {5} ({6})'.format(c, int(log10(len(videos_items))) + 1, i['snippet']['publishedAt'][:10], i['id'],
+        print('{0:>{1}}. [{2} {3} {4}] {5} ({6})'.format(c, 1 if len(videos_items) < 10 else 2, i['snippet']['publishedAt'][:10], i['id'],
             i['snippet']['channelTitle'], i['snippet']['title'], i['contentDetails']['duration'][2:].lower()))
 
     try:

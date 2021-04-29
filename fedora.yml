@@ -38,6 +38,7 @@
       dnf_packages: "{{ dnf_packages | default([]) }} + ['{{ item.name }}']"
     loop:
       - name: ffmpeg
+      - name: geary
       - name: gimp
       - name: gnome-extensions-app
       - name: gnome-subtitles
@@ -46,7 +47,6 @@
       - name: lpf-spotify-client
       - name: newsboat
       - name: python3-psutil
-      - name: rclone
       - name: tlp
       - name: tlp-rdw
       - name: transmission-gtk
@@ -220,7 +220,9 @@
       - key: /org/gnome/shell/enabled-extensions
         value: "['places-menu@gnome-shell-extensions.gcampax.github.com']"
       - key: /org/gnome/shell/favorite-apps
-        value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Terminal.desktop', 'spotify.desktop', 'org.keepassxc.KeePassXC.desktop']"
+        value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Geary.desktop', 'org.gnome.Terminal.desktop', 'spotify.desktop', 'org.keepassxc.KeePassXC.desktop']"
+      - key: /org/gnome/software/download-updates
+        value: "false"
       - key: /org/gnome/terminal/legacy/profiles:/:{{ command_result.results[0].stdout | trim("'") }}/default-size-columns
         value: "132"
       - key: /org/gnome/terminal/legacy/profiles:/:{{ command_result.results[0].stdout | trim("'") }}/default-size-rows
@@ -242,11 +244,8 @@
     loop:
       - path: "{{ ansible_facts.env.HOME }}/.bashrc.d/aliases.bash"
         block: |
-          #alias rclone-copy='rclone copy  remote: --exclude *.swp --update'
-          #alias rclone-sync='rclone sync remote:  --exclude *.swp --update'
           #alias ytsearch='$HOME/Scripts/ytsearch.py -k '
           alias cp='cp -i'
-          alias docker='podman'
           alias mv='mv -i'
           alias svtplay-dl='podman run -it --rm -v $HOME/Downloads:/data:Z spaam/svtplay-dl'
           alias svtplay-os='$HOME/Scripts/svtplay-os.py'
@@ -254,10 +253,6 @@
         block: |
           export EDITOR='/usr/bin/env vim'
           export HISTFILE=
-      - path: "{{ ansible_facts.env.HOME }}/.bashrc.d/functions.bash"
-        block: |
-          bcl() { echo "$1" | bc -l; }
-          rclone-deletefile() { rclone deletefile "remote:$1" && rm "$1"; }
       - path: "{{ ansible_facts.env.HOME }}/.config/containers/registries.conf"
         block: |
           unqualified-search-registries = ['docker.io']
