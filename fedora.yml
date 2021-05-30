@@ -26,8 +26,10 @@
       - manager: rpm
 
   - set_fact:
-      dnf_repos: "{{ dnf_repos | default([]) }} + ['{{ item.url }}']"
+      dnf_urls: "{{ dnf_urls | default([]) }} + ['{{ item.url }}']"
     loop:
+      - name: mullvad-vpn
+        url: https://mullvad.net/download/app/rpm/latest
       - name: rpmfusion-free-release
         url: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_facts.distribution_major_version }}.noarch.rpm
       - name: rpmfusion-nonfree-release
@@ -46,6 +48,7 @@
       - name: keepassxc
       - name: lpf-spotify-client
       - name: newsboat
+      - name: nextcloud-client
       - name: python3-psutil
       - name: tlp
       - name: tlp-rdw
@@ -60,7 +63,7 @@
       disable_gpg_check: "{{ item.disable_gpg_check }}"
     become: yes
     loop:
-      - name: "{{ dnf_repos | default([]) }}"
+      - name: "{{ dnf_urls | default([]) }}"
         disable_gpg_check: yes
       - name: "{{ dnf_packages | default([]) }}"
         disable_gpg_check: no
@@ -220,7 +223,7 @@
       - key: /org/gnome/shell/enabled-extensions
         value: "['places-menu@gnome-shell-extensions.gcampax.github.com']"
       - key: /org/gnome/shell/favorite-apps
-        value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Geary.desktop', 'org.gnome.Terminal.desktop', 'spotify.desktop', 'org.keepassxc.KeePassXC.desktop']"
+        value: "['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Geary.desktop', 'org.gnome.Terminal.desktop', 'mullvad-vpn.desktop', 'com.nextcloud.desktopclient.nextcloud.desktop', 'spotify.desktop', 'org.keepassxc.KeePassXC.desktop']"
       - key: /org/gnome/software/download-updates
         value: "false"
       - key: /org/gnome/terminal/legacy/profiles:/:{{ command_result.results[0].stdout | trim("'") }}/default-size-columns
@@ -233,8 +236,10 @@
       dest: "{{ item.dest }}"
       update: no
     loop:
+      - repo: https://github.com/luudvig/infrastructure-as-code.git
+        dest: "{{ ansible_facts.env.HOME }}/Repositories/infrastructure-as-code"
       - repo: https://github.com/luudvig/scripts.git
-        dest: "{{ ansible_facts.env.HOME }}/Scripts"
+        dest: "{{ ansible_facts.env.HOME }}/Repositories/scripts"
 
   - blockinfile:
       path: "{{ item.path }}"
@@ -244,11 +249,11 @@
     loop:
       - path: "{{ ansible_facts.env.HOME }}/.bashrc.d/aliases.bash"
         block: |
-          #alias ytsearch='$HOME/Scripts/ytsearch.py -k '
           alias cp='cp -i'
           alias mv='mv -i'
           alias svtplay-dl='podman run -it --rm -v $HOME/Downloads:/data:Z spaam/svtplay-dl'
-          alias svtplay-os='$HOME/Scripts/svtplay-os.py'
+          alias svtplay-os='$HOME/Repositories/scripts/svtplay-os.py'
+          #alias ytsearch='$HOME/Repositories/scripts/ytsearch.py -k '
       - path: "{{ ansible_facts.env.HOME }}/.bashrc.d/exports.bash"
         block: |
           export EDITOR='/usr/bin/env vim'
