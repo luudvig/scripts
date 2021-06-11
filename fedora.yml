@@ -105,12 +105,7 @@
       cmd: "{{ item.cmd }}"
     check_mode: no
     loop:
-      - cmd: >
-          grep -P -o '(?<=user_pref\("browser.pageActions.persistedActions", ).*(?=\);)' "{{ find_result.results[0].files[0].path }}/prefs.js" |
-          perl -p -e 's/(?<=\\"idsInUrlbar\\":\[)\\"pocket\\",//g'
-      - cmd: >
-          grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ find_result.results[0].files[0].path }}/prefs.js" |
-          perl -p -e 's/,\\"(customizableui-special-spring1|customizableui-special-spring2|fxa-toolbar-menu-button|home-button|library-button|sidebar-button)\\"//g'
+      - cmd: grep -P -o '(?<=user_pref\("browser.uiCustomization.state", ).*(?=\);)' "{{ find_result.results[0].files[0].path }}/prefs.js" | perl -p -e 's/,\\"(customizableui-special-spring(1|2)|save-to-pocket-button)\\"//g'
     register: shell_result
     changed_when: no
 
@@ -120,19 +115,15 @@
     check_mode: yes
     loop:
       - line: user_pref("app.shield.optoutstudies.enabled", false);
-      - line: user_pref("browser.ctrlTab.recentlyUsedOrder", false);
       - line: user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", false);
       - line: user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", false);
       - line: user_pref("browser.newtabpage.enabled", false);
-      - line: user_pref("browser.pageActions.persistedActions", {{ shell_result.results[0].stdout }});
       - line: user_pref("browser.privatebrowsing.autostart", true);
       - line: user_pref("browser.search.suggest.enabled.private", true);
       - line: user_pref("browser.startup.homepage", "about:blank");
       - line: user_pref("browser.toolbars.bookmarks.visibility", "never");
-      - line: user_pref("browser.uiCustomization.state", {{ shell_result.results[1].stdout }});
+      - line: user_pref("browser.uiCustomization.state", {{ shell_result.results[0].stdout }});
       - line: user_pref("browser.urlbar.suggest.bookmark", false);
-      - line: user_pref("browser.urlbar.suggest.engines", false);
-      - line: user_pref("browser.urlbar.suggest.history", false);
       - line: user_pref("browser.urlbar.suggest.openpage", false);
       - line: user_pref("browser.urlbar.suggest.topsites", false);
       - line: user_pref("datareporting.healthreport.uploadEnabled", false);

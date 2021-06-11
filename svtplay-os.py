@@ -5,7 +5,7 @@ from os import environ
 from subprocess import PIPE, run
 
 parser = ArgumentParser()
-parser.add_argument('-f', '--format', default='H264', help='format to download (default: H264)')
+parser.add_argument('-f', '--format', default='h264', help='format to download (default: h264)')
 parser.add_argument('-m', '--method', default='DASH', help='method to use when downloading (default: DASH)')
 parser.add_argument('-o', '--offset', default=1, type=int, help='quality offset to download (default: 1)')
 parser.add_argument('-u', '--username', help='username to use when downloading')
